@@ -300,7 +300,10 @@ defmodule RelationalTest3 do
       R.t(fn() -> 
         L.where(relvar, &(&1[:value] == 4)) |> R.update(
                  fn(old) ->
-                   %{:id => :four}
+                   IO.inspect [old: old]
+                   m = put_in old, [:id], :four
+                   IO.inspect [new: m]
+                   m
                  end, relvar)
         L.where(relvar,&(&1[:value]==4))
       end)
@@ -331,8 +334,12 @@ defmodule RelationalTest3 do
     a = R.t(fn() -> 
       L.njoin(relvar, m)
     end)
-    IO.inspect [a: a]
-    assert [:a, :b, :e] == L.delete_elements_from_tuple(0,[2,3], {:a, :b, :c, :d, :e})
+    assert a == {:atomic, [{:atom2, 4, 4, :four},
+                           {:atom1, 2, 2, :two}]}
+#    IO.inspect [a: a]
+    assert [:a, :b, :e] == 
+      L.delete_elements_from_tuple(0,[2,3], 
+                                   {:a, :b, :c, :d, :e})
   end
   @tag :test4
   test "relval.table/1" do

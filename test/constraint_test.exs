@@ -2,7 +2,7 @@ defmodule ConstraintTest do
   use ExUnit.Case, async: false
   require Qlc
   alias Relvar2, as: R
-  alias Relval2, as: L
+#  alias Relval2, as: L
   require Relvar2
   require Reltype
   @moduletag :test3
@@ -55,7 +55,7 @@ defmodule ConstraintTest do
   test "create/3" do
     create_type()
     R.t(fn() ->
-      Constraint.create("test_2_22_fk", [:test22, :test2], fn(x) ->
+      Constraint.create("test_2_22_fk", [:test22, :test2], fn(_x) ->
         Constraint.foreign_key!(:test2, :test22, [:value])
       end)
     end)
@@ -67,17 +67,17 @@ defmodule ConstraintTest do
       Constraint.validate([:test22])
     end))
     assert({:aborted, [{false, "test_2_22_fk", 
-                        {:foreign_key, :test22, :test2, r }}]} = 
+                        {:foreign_key, :test22, :test2, _r }}]} = 
       R.t(fn() -> 
         R.write(:test22, {6, :m})
-        relvar = R.to_relvar(:test22)
+#        relvar = R.to_relvar(:test22)
         Constraint.validate([:test22])
     end))
     assert({:aborted, [{false, "test_2_22_fk",
-                        {:foreign_key, :test22, :test2, r}}]} = 
+                        {:foreign_key, :test22, :test2, _r}}]} = 
       R.t(fn() -> 
-        test2 = R.to_relvar(:test2)
-        test22 = R.to_relvar(:test22)
+#        test2 = R.to_relvar(:test2)
+#        test22 = R.to_relvar(:test22)
         R.delete(R.to_relvar(:test2), {:id1, 4})
         Constraint.validate([:test2])
       end))

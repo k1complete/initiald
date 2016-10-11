@@ -16,7 +16,7 @@ defmodule RelTime do
     :erlang.timestamp()
   end
   @spec to_local_time({megasec, sec, nanosec}) :: {{year, month, day},{hour, minute, second}, {nanosec}}
-  def to_local_time({megasec, sec, nanosec} = t) do
+  def to_local_time({_megasec, _sec, nanosec} = t) do
     {d, h} = :calendar.now_to_local_time(t)
     {d, h, nanosec}
   end

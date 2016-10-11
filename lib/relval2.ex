@@ -45,7 +45,7 @@ defmodule Relval2 do
       (_) -> :undefined
     end
     formatfun = fn({:all, nelements, elementfun}) ->
-      IO.inspect [all: :all, nelements: nelements, elementfun: elementfun]
+#      IO.inspect [all: :all, nelements: nelements, elementfun: elementfun]
       list = MapSet.to_list(relval.body)
       {e, p} = if (MapSet.size(relval.body) > nelements) do
         {Enum.drop(list, nelements), :"..."}
@@ -138,25 +138,9 @@ defmodule Relval2 do
         {:error, :bad_header}
     end
   end
-  def to_map(relval_element, types) do
-    IO.inspect [tuple_to_map: relval_element, att: types]
-    rest = Tuple.to_list(relval_element)
-    arest = Keyword.keys(types)
-    v = Enum.zip(arest, rest)|> Map.new
-    v
-  end
   def r_to_t(r, types) do
-    Tuple.delete_at(r, 0)
-    |> Tuple.delete_at(0)
+    Relutil.record_to_tuple(r)
     |> T.new(types)
-  end
-  def record_to_map(r, types) do
-    IO.inspect [record_to_map: r, att: types]
-    [_, _k|rest] = Tuple.to_list(r)
-    arest = Keyword.keys(types)
-#    IO.inspect [tuple_to_map: arest]
-    v = Enum.zip(arest, rest)|> Map.new
-    v
   end
 
   @spec where(R.t | relval, (T.t -> boolean)) :: relval
@@ -208,7 +192,8 @@ defmodule Relval2 do
              end) |> Enum.reverse()
   end
   @spec project(R.t | relval, [value_name|key_name], boolean) :: relval
-  def project(left = %__MODULE__{}, attributes, take \\ true) do
+  def project(left, attributes, take \\ true)
+  def project(left = %__MODULE__{}, attributes, take) do
     #r = select_fields_index(attributes, left.types)
     attributes = case take do
                    true -> attributes
@@ -234,7 +219,7 @@ defmodule Relval2 do
                  end
     r = select_fields_index(attributes, left.types)
     types = Enum.map(attributes, &({&1, Keyword.get(left.types, &1)}))
-    IO.inspect [project: [r: r, attributes: attributes, types: left.types]]
+#    IO.inspect [project: [r: r, attributes: attributes, types: left.types]]
     body = Enum.map(left, 
                     fn(v) ->
  #                     IO.inspect [project_elem: v, r: r]
@@ -242,7 +227,7 @@ defmodule Relval2 do
                         Tuple.append(a, elem(v, x))
                       end)
                     end)
-    IO.inspect [project: body, types: types]
+#    IO.inspect [project: body, types: types]
     %__MODULE__{body: MapSet.new(body), types: types}
   end
 
@@ -325,13 +310,13 @@ defmodule Relval2 do
 #    IO.inspect([left: left, right: right])
     body = for le <- left, re <- right,
       (_k = Enum.map(ls, &(elem(le, &1)))) == Enum.map(rs, &(elem(re, &1))),
-      right_rest = Enum.map(r_rest_index, &(elem(re, &1))) do
-#        IO.inspect([le: le, re: re])
+      Enum.map(r_rest_index, &(elem(re, &1))) do
+        #        IO.inspect([le: le, re: re])
         s = f.({left.types, le, l_rest_index}, {right.types, re, r_rest_index})
-#        IO.inspect([ss: s])
+        #        IO.inspect([ss: s])
         s
-      end
-#    IO.inspect([body: body])
+    end
+    #    IO.inspect([body: body])
     %__MODULE__{types: head, body: MapSet.new(body)}
   end
   @spec fnjoin(R.t | relval, R.t | relval) :: relval
@@ -447,20 +432,20 @@ defmodule Relval2 do
   end
   @spec count(tuple,  %__MODULE__{}) :: tuple
   def count(t, v) do
-    IO.inspect [count_v: v, t: t]
+#    IO.inspect [count_v: v, t: t]
     s = MapSet.size(v.body)
-    IO.inspect [count_v2: t, s: s]
+#    IO.inspect [count_v2: t, s: s]
     %T{t | :tuple => Tuple.append(t.tuple, s)}
   end
   @spec max(map, %__MODULE__{}, atom) :: map
   def max(t, v, target_label) do
-    IO.inspect [max_v: v, t: t]
+#    IO.inspect [max_v: v, t: t]
     k = Enum.with_index(Keyword.keys(v.types))
     r = case MapSet.size(v.body) do
           0 -> 0
           _ ->
             {min, max} = Enum.min_max_by(v.body, fn(x) -> 
-              IO.inspect [x: x, k: k, target_label: target_label]
+#              IO.inspect [x: x, k: k, target_label: target_label]
               elem(x, k[target_label])
             end)
             elem(max, k[target_label])
@@ -513,30 +498,30 @@ defmodule Relval2 do
   """
   def summarize(left, right, [add: {summary_fun, summary_types}]) do
 #    IO.inspect [left: project(left, [:sno, :pno, :qty])]
-    IO.inspect [left: left]
+#    IO.inspect [left: left]
     r = Enum.map(right, fn(x) ->
-      IO.inspect [x: x]
+#      IO.inspect [x: x]
       right_attrs = Keyword.keys(right.types)
       p = Reltuple.new(x, right.types)
-      pivot = to_map(x, right.types)
-      pivot_keys = Map.keys(pivot)
+#      pivot = to_map(x, right.types)
+#      pivot_keys = Map.keys(pivot)
       r = Enum.reduce(left, [], fn(e, a2) ->
 #        IO.inspect [x: x, e: e, left: project(left, [:sno, :pno, :qty]), a2: a2]
 #        IO.inspect [pivot: pivot, pivot_keys: pivot_keys]
-        IO.inspect [p: p, right_attrs: right_attrs]
+#        IO.inspect [p: p, right_attrs: right_attrs]
         attributes = Reltuple.new(e, left.types)
-        IO.inspect [attributes: attributes]
+#        IO.inspect [attributes: attributes]
         etuple = Reltuple.take(attributes, right_attrs)
 #        attributes = to_map(e, left.types)
 #        emap = Map.take(attributes, pivot_keys)
-        IO.inspect [etuple: etuple, p: p]
+#        IO.inspect [etuple: etuple, p: p]
         if (Reltuple.equal?(p, etuple)) do
           [attributes.tuple | a2]
         else
           a2
         end
       end)
-      IO.inspect [x: right, r: r]
+#      IO.inspect [x: right, r: r]
       {p, r}
 ##      |> summary_fun.()
 ##      [x ++ r|a]

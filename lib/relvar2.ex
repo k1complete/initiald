@@ -1,7 +1,8 @@
 defmodule Relvar2 do
   require Logger
   require Qlc
-  alias Relval2, as: L
+#  alias Relval2, as: L
+  alias Reltuple, as: T
 
   defstruct name: nil, types: nil, keys: nil, attributes: nil, constraints: nil
 
@@ -47,10 +48,6 @@ defmodule Relvar2 do
   def table(relvar) do
     :mnesia.table(relvar.name)
   end
-  def record_to_tuple(e) do
-    t = Tuple.delete_at(e, 0)
-    Tuple.delete_at(t, 0)
-  end
   @spec read(__MODULE__.t, map) :: [tuple]| {:no_exists, atom}
   def read(relvar, key) do
     :mnesia.read({relvar.name, key})
@@ -78,7 +75,7 @@ defmodule Relvar2 do
              """, [Q: Reltype.table(), Types: v])
       Qlc.e(qc)
     end)
-    IO.inspect [s: s, v: v]
+#    IO.inspect [s: s, v: v]
     case (v -- s) do
       [] ->
         attribute_keys = Keyword.keys(attribute_def)
@@ -149,7 +146,7 @@ defmodule Relvar2 do
     |> Enum.reverse()
   end
   def get_keys(t, index_list) do
-    IO.inspect([:t, t])
+#    IO.inspect([:t, t])
     r = Enum.map(index_list, &(elem(t, &1))) 
         |> List.to_tuple()
     case r do
@@ -177,7 +174,7 @@ defmodule Relvar2 do
     keyitem = get_key_from_tuple(t, relvar)
     attributes = relvar.attributes
     z = Enum.zip(attributes, [keyitem|Tuple.to_list(t)])
-    
+#    IO.inspect([z: z, types: types, t: t])
     case valid(z, types) do
       [] ->
         Tuple.insert_at(t, 0, keyitem)
@@ -199,24 +196,23 @@ defmodule Relvar2 do
 #    Enum.map(left, &(write(relvar, &1)))
   #  end
   def map_to_tuple(new, relvar) do
-    keys = relvar.keys
+    #keys = relvar.keys
     [:key|attributes] = relvar.attributes
     :erlang.list_to_tuple(Enum.map(attributes, fn(e) -> Map.get(new, e) end))
   end
   def update_or_replace(new, old, relvar) do
     keys = relvar.keys
-    new = Map.merge(old, new);
-    {new_keys, _} = Map.split(new, keys)
-    {old_keys, _} = Map.split(old, keys)
+    IO.inspect [update_or_replace: new, old: old, relvar: relvar]
+#    new = Map.merge(old, new);
+    new_keys = Reltuple.take(new, keys)
+    old_keys = Reltuple.take(old, keys)
 #    new_keys = List.to_tuple(Enum.map(keys, &(new_keys[&1])))
 #    old_keys = List.to_tuple(Enum.map(keys, &(old_keys[&1])))
-    if (!Map.equal?(new_keys, old_keys)) do
-      t = map_to_tuple(old_keys, relvar)
-      delete(relvar, t)
+    if (!Reltuple.equal?(new_keys, old_keys)) do
+      delete(relvar, old_keys.tuple)
     end
-    t = map_to_tuple(new, relvar)
-    IO.inspect([update_or_replace: t])
-    write(relvar, t)
+#    IO.inspect([update_or_replace: t])
+    write(relvar, new.tuple)
   end
   def constraint(new, old, relvar) do
     case Enum.all?(relvar.constraints, &(&1.(new, old, relvar))) do
@@ -224,7 +220,7 @@ defmodule Relvar2 do
       false -> raise(RuntimeError, "constraint violation");
     end
   end
-  @spec update(relval, __MODULE__.t) :: relval
+  @spec update(relval,  __MODULE__.t) :: relval
   def update(left, %__MODULE__{} = relvar) when is_map(left) do
     Enum.map(left, fn(t) -> 
       write(relvar, t) 
@@ -235,7 +231,7 @@ defmodule Relvar2 do
     IO.inspect [update: relval]
     Enum.map(relval.body, fn(x) -> 
       IO.inspect [relval: x]
-      old_map = L.to_map(x, relval.types)
+      old_map = T.new(x, relval.types)
       IO.inspect [oldmap: old_map]
       updatefn.(old_map) |>
 #      constraint(old_map, relvar)|>
@@ -274,7 +270,7 @@ defimpl Enumerable, for: Relvar2 do
           [] -> 
             false
           [x] -> 
-            t = R.record_to_tuple(x)
+            t = Relutil.record_to_tuple(x)
             case t do
               ^val -> true
               _ -> false
@@ -294,7 +290,7 @@ defimpl Enumerable, for: Relvar2 do
 #    [:key|attribute_set] = v.attributes
     {_, ret} = :mnesia.foldl(
       fn(e, {:cont, acc}) ->
-          t = R.record_to_tuple(e)
+          t = Relutil.record_to_tuple(e)
 #         IO.inspect [v: v, acc: acc, t: t]
           fun.(t, acc)
         (_e, {r, acc}) ->

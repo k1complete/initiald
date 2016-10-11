@@ -89,8 +89,8 @@ defmodule Constraint do
   def foreign_key!(pk, fk, keys) do
     pkvar = R.to_relvar(pk)
     fkvar = R.to_relvar(fk)
-    s = L.minus(fk=L.project(fkvar, keys, true),
-                pk=L.project(pkvar, keys, true))
+    s = L.minus(_fk=L.project(fkvar, keys, true),
+                _pk=L.project(pkvar, keys, true))
     case Enum.count(s) == 0 do
       true -> 
         true

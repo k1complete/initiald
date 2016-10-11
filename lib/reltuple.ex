@@ -2,11 +2,12 @@ defmodule Reltuple do
   @behaviour Access
   defstruct tuple_index: %{}, tuple: {}, types: []
   def new(val, types) do
-    IO.inspect [module: :Reltuple, val: val, types: types]
+#    IO.inspect [module: :Reltuple, val: val, types: types]
     %__MODULE__{tuple_index: Enum.with_index(Keyword.keys(types)), 
       tuple: val,
       types: types}
   end
+  
   def fetch(%__MODULE__{tuple_index: i, tuple: t}, key) do
     {:ok, elem(t, i[key])}
   end
@@ -22,8 +23,8 @@ defmodule Reltuple do
             nil -> {key, nil}
             j -> {elem(t, j), j}
           end
-    IO.inspect [j: j]
-    {nk, nv}  = case fun.(old) do
+#    IO.inspect [j: j]
+    {_nk, nv}  = case fun.(old) do
       :pop -> 
         {old, nil}
       {old, new} ->
@@ -45,7 +46,7 @@ defmodule Reltuple do
     {old, %__MODULE__{ v | :tuple => put_elem(t, r, nil) } }
   end
   def take(v, keys) do
-    r = Enum.map(keys, fn(x) ->
+    Enum.map(keys, fn(x) ->
       elem(v.tuple, v.tuple_index[x])
     end) 
     |> List.to_tuple 

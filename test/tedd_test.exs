@@ -4,7 +4,7 @@ defmodule TeddTest do
   require Qlc
   alias Relvar2, as: R
   alias Relval2, as: L
-  require Reltype, as: T
+  require Reltype
   @moduletag :test2
 
   setup_all do
@@ -117,7 +117,7 @@ defmodule TeddTest do
     r =R.t(fn() ->
       L.summarize(sp, 
                   L.where(L.project(s, [:sno]), fn(k) ->
-                    IO.inspect [tuple: k, k: k[:sno]]
+#                    IO.inspect [tuple: k, k: k[:sno]]
                     k[:sno] in [ "s1" , "s2", "s3", "s5" ]
                   end), 
                   add: {fn(t, r) ->
@@ -192,7 +192,7 @@ defmodule TeddTest do
     assert ({:aborted, [{false,  "s_sp_fk", 
                         {:foreign_key, 
                          :sp, :s, _}}]} = r)
-    IO.inspect [s: r]
+#    IO.inspect [s: r]
 
   end
   

@@ -203,7 +203,7 @@ defmodule RelationalTest do
   end
   test "Relational operation rename" do
     create_type()
-    relvar = R.to_relvar(:test2)
+#    relvar = R.to_relvar(:test2)
 #    assert {:atomic, 
 #            [{:atom1, 2}, {:atom2, 4}]
 #      == R.t(fn() -> L.rename(relvar, :id, :id2) end)
