@@ -6,6 +6,7 @@ defmodule Initiald.Mixfile do
      version: "0.0.1",
      elixir: "~> 1.1-dev",
      name: "subset of Tutorial D",
+     dialyzer: [plt_add_apps: [:mnesia, :qlc]],
      deps: deps()]
   end
 
@@ -13,7 +14,7 @@ defmodule Initiald.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [applications: [:logger]]
+    [applications: [:logger, :mnesia, :qlc]]
   end
 
   # Dependencies can be Hex packages:
@@ -28,7 +29,8 @@ defmodule Initiald.Mixfile do
   defp deps do
     [{:ex_doc, "~> 0.7", only: :dev, git: "https://github.com/elixir-lang/ex_doc.git"},
      {:earmark, "~> 0.1", only: :dev},
-     {:qlc, "~> 1.0", path: "../qlc"}
+     {:qlc, "~> 1.0", path: "../qlc"},
+     {:dialyxir, "~> 0.3", only: [:dev]}
     ]
   end
 end

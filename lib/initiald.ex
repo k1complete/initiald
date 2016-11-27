@@ -156,4 +156,5 @@ defmodule InitialD do
 #    IO.inspect [write: left]
     left
   end
+
 end

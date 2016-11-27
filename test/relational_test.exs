@@ -2,15 +2,20 @@ defmodule RelationalTest do
   use ExUnit.Case, async: false
   require Qlc
   alias Relvar2, as: R
-  alias Relval2, as: L
+  alias Relval, as: L
   require Reltype
   require Relvar2
-  require Relval2
+  require Relval
   @moduletag :test_rel
+  @key :_key
 
   setup_all do
     :mnesia.start
     Reltype.init
+    Constraint.init
+    on_exit fn() ->
+      Constraint.destroy
+    end
     :ok
   end
   setup do
@@ -36,7 +41,7 @@ defmodule RelationalTest do
     assert(struct(R, %{:keys => keys, 
                        :name => :test2,
                        :types => types,
-                       :attributes => [:key, :id, :value]
+                       :attributes => [:_key, :id, :value]
         })
            == R.create(:test2, [:id], [id: :atom, value: :odd]))
     assert({:atomic, :ok} == 
@@ -139,67 +144,92 @@ defmodule RelationalTest do
   test "Relational operator union" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = %L{body: MapSet.new([{:atom1, 2}, {:atom3, 6}]),
-                 types: [id: :atom, value: :odd]}
+    relval2 = L.new(%{body: [{:atom1, 2}, {:atom3, 6}],
+                 types: [id: :atom, value: :odd],
+                 keys: [:id],
+                 name: :test22
+    })
     assert R.t(fn() ->
-      L.union(relvar, relval2)
-      end) == {:atomic,%L{body: MapSet.new([{:atom1, 2},
-                                            {:atom2, 4},
-                                            {:atom3, 6}]),
-                          types: [id: :atom, value: :odd]}}
+      L.union(relvar, relval2) |> L.execute()|> Enum.sort()
+      end) == {:atomic,L.new(%{body: [{:atom1, 2},
+                                      {:atom2, 4},
+                                      {:atom3, 6}],
+                               name: :test2,
+                               keys: [:id],
+                             types: [id: :atom, value: :odd]}) 
+              |> L.execute() |> Enum.sort() }
   end
   test "Relational operator minus" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = %L{types: [id: :atom, value: :odd],
-                body: MapSet.new([{:atom1, 2}])}
+    relval2 = L.new(%{types: [id: :atom, value: :odd],
+                       body: [{:atom1, 2}],
+                      name: :test22,
+                      keys: [:id]
+    })
     assert R.t(fn() ->
-      L.minus(relvar, relval2)
-      end) == {:atomic, %L{body: MapSet.new([{:atom2, 4}]),
-                           types: [id: :atom, value: :odd]}}
+      L.minus(relvar, relval2) |> L.execute()
+      end) == {:atomic, L.new(%{body: [{:atom2, 4}],
+                                types: [id: :atom, value: :odd],
+                                name: :test2,
+                                keys: [:id]
+                }) |> L.execute() }
   end
   test "Relational operator intersect" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = %L{types: [id: :atom, value: :odd],
-                 body: MapSet.new([{:atom1, 2}])}
+    relval2 = L.new(%{types: [id: :atom, value: :odd],
+                      body: [{:atom1, 2}],
+                      name: :test22,
+                      keys: [:id]
+    })
     assert R.t(fn() ->
-      L.intersect(relvar, relval2)
-      end) == {:atomic, %L{body: MapSet.new([atom1: 2]),
-                           types: [id: :atom, value: :odd]}}
+      L.intersect(relvar, relval2) |> L.execute()
+      end) == {:atomic, L.new(%{body: [atom1: 2],
+                                types: [id: :atom, value: :odd],
+                                name: :test2,
+                                keys: [:id]
+              }) |> L.execute() }
   end
   test "Relational operator where" do
     create_type()
     relvar = R.to_relvar(:test2)
     assert R.t(fn() ->
-      L.where(relvar, fn(v) -> 
-        case v[:value] do
-          4 -> true
-          _ -> false
-        end
-      end)
-    end) == {:atomic,%L{body: MapSet.new([{:atom2, 4}]),
-                        types: [id: :atom, value: :odd]}}
+      L.where(relvar, [], (value == 4)) |> L.execute()
+    end) == {:atomic,L.new(%{body: [{:atom2, 4}],
+                             types: [id: :atom, value: :odd],
+                             name: :test2,
+                             keys: [:id]
+            }) |> L.execute() }
   end
   test "Relational operator project" do
     create_type()
     relvar = R.to_relvar(:test2)
     assert R.t(fn() ->
-      L.project(relvar, [:value])
-    end) == {:atomic, %L{body: MapSet.new([{2},{4}]),
-                        types: [value: :odd]}}
+      L.project(relvar, {value}) |> L.execute() |> Enum.sort()
+    end) == {:atomic, L.new(%{body: [{2},{4}],
+                              types: [value: :odd],
+                              name: :test2,
+                              keys: [:value]
+            }) |> L.execute() |> Enum.sort() }
   end
   test "Relational operator fnjoin" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = %L{body: MapSet.new([{2, :two}, {4, :four}, {6, :six}]),
-                 types: [value: :odd, name: :atom]}
+    relval2 = L.new(%{body: [{2, :two}, {4, :four}, {6, :six}],
+                      types: [value: :odd, name: :atom],
+                      name: :test22,
+                      keys: [:value, :name]
+    })
 
     assert R.t(fn() ->
-      L.fnjoin(relvar,  relval2)
-    end) == {:atomic,%L{body: MapSet.new([{:atom1, 2, :two},
-                                          {:atom2, 4, :four}]),
-                        types: [id: :atom, value: :odd, name: :atom]}}
+      L.join(relvar,  relval2) |> L.execute() |> Enum.sort()
+    end) == {:atomic,L.new(%{body: [{:atom1, 2, :two},
+                                    {:atom2, 4, :four}],
+                             types: [id: :atom, value: :odd, name: :atom],
+                             name: :test2_test22,
+                             keys: [:id, :name]
+            }) |> L.execute() |> Enum.sort() }
   end
   test "Relational operation rename" do
     create_type()

@@ -1,7 +1,7 @@
 defmodule Constraint do
   require Record
   alias Relvar2, as: R
-  alias Relval2, as: L
+  alias Relval, as: L
   require Qlc
 
   @relvar_constraint :__relvar_constraint__
@@ -27,6 +27,7 @@ defmodule Constraint do
     {c, rc}
     :ok
   end
+  @spec destroy() :: :ok | no_return
   def destroy() do
     R.drop(@relvar_constraint)
     R.drop(@constraint)
@@ -35,17 +36,29 @@ defmodule Constraint do
   @doc """
   create new constraint for relvars, by definition.
   """
-  @spec create(String.t, list, function) :: true | no_return
+  @spec create(String.t, maybe_improper_list(), (... -> any)) :: boolean()
   def create(constraint, relvars, definition) do
     c = R.to_relvar(@constraint)
     rc = R.to_relvar(@relvar_constraint)
-    :ok = R.write(c, {constraint, definition})
-    Enum.all?(relvars,
-      fn(x) -> 
-        :ok = R.write(rc, {x, constraint})
-      end)
+    R.write(c, {constraint, definition})
+    Enum.all?(relvars, fn(x) -> :ok == R.write(rc, {x, constraint}) end)
   end
-  @spec validate([atom]) :: [] | [{false, map, tuple}]
+  @spec delete(String.t) :: :ok | no_return
+  def delete(constraint) do
+    qc = Qlc.q("""
+         [ {RV, RC} || {_, {RV, RC}, RV, RC} <- RelvarConstraint,
+         RC =:= C ]
+         """, [RelvarConstraint: R.table(@relvar_constraint), C: constraint])
+    case Qlc.e(qc) do
+      [] ->
+        :ok
+      x when is_list(x) ->
+        Enum.each(x, fn(x) -> :mnesia.delete(@relvar_constraint, x, :write) end)
+      error ->
+        :mnesia.abort(error)
+    end
+    :mnesia.delete(@constraint, constraint, :write)
+  end
   @doc """
   validate fro relname list.
 
@@ -54,6 +67,7 @@ defmodule Constraint do
   return failed constraint list.
 
   """
+  @spec validate([atom]|R.t) :: :ok
   def validate(%R{} = relname) do
     validate([relname.name])
   end
@@ -85,17 +99,29 @@ defmodule Constraint do
 
   if not satisfy constraint, raise transaction abort.
   """
-  @spec foreign_key!(atom, atom, list) :: true | no_return
-  def foreign_key!(pk, fk, keys) do
-    pkvar = R.to_relvar(pk)
-    fkvar = R.to_relvar(fk)
-    s = L.minus(_fk=L.project(fkvar, keys, true),
-                _pk=L.project(pkvar, keys, true))
-    case Enum.count(s) == 0 do
-      true -> 
-        true
+  @spec foreign_key!(atom, atom, [atom]) :: true | {:foreign_key, any, any, L.t}
+  defmacro foreign_key!(pk, fk, keys) do
+    quote bind_quoted: [pk: pk, fk: fk, keys: keys] do
+      pkvar = R.to_relvar(pk)
+      fkvar = R.to_relvar(fk)
+      s = L.minus(fk=L.do_project(fkvar, keys),
+                  pk=L.do_project(pkvar, keys))
+      c = L.execute(s)
+      IO.inspect [c: c, keys: keys, fkvar: fk, pkvar: pk]
+
+      case Enum.count(c) == 0 do
+        true -> 
+          true
+        false ->
+          {:foreign_key, fkvar.name, pkvar.name, s}
+      end
+    end
+  end
+  def is_empty(r) do
+    case Enum.count(r.()|>L.execute()) == 0 do
+      true -> true
       false ->
-        {:foreign_key, fkvar.name, pkvar.name, s}
+        false
     end
   end
   @moduledoc """
@@ -121,8 +147,8 @@ defmodule Constraint do
       Enum.count(L.project(sp, :pno)) <= Enum.count(L.project(p, :pno))
     end
 
-    しかし、実際は、変更したい{k, v}が定まっていると思われるので、
-    その{k, v}についてのみ考えればいいはず。
+    しかし、実際は、変更したいタプルが定まっていると思われるので、
+    そのタプルについてのみ考えればいいはず。
     s[sno]を削除すると、影響するsp[sno]があるかもしれず、其の場合、
     エラーをかえしたいが、面倒臭い。
     
@@ -133,7 +159,6 @@ defmodule Constraint do
         count(project(fk, keys))
      end
     複数の代入が出来ればいいが、実用的じゃないかも。
-    。
 
   """
 end

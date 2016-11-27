@@ -1,218 +1,333 @@
 defmodule Relval do
-  alias Relvar, as: R
   require Qlc
   require Logger
-  @type key_name :: atom
-  @type key_val :: any
-  @type key_set :: %{key_name => key_val}
-  @type value_set :: %{value_name => value_val}
-  @type value_name :: atom
-  @type value_val :: any
-  @type relval :: %{key_set => value_set}
-  @spec union(R.t | relval, R.t | relval) :: relval
-  @doc """
-  union left and right.
+  alias Relvar2, as: R
+  defstruct types: Keyword.new(), keys: [], query: nil, name: nil
 
-  left and right should have same keys and attributes.
-  """
-  def union(left, right) do
-    Enum.into(left, Enum.into(right, %{}))
+  def make_key_from_keys([key]) do
+    key
   end
-  @spec minus(R.t | relval, R.t | relval) :: relval
-  def minus(left, right) do
-    {_d, ret} = Map.split(Enum.into(left, %{}), 
-                          Map.keys(Enum.into(right, %{})))
-    ret
+  def make_key_from_keys(keys) do
+    List.to_tuple(keys)
   end
-  @spec intersect(R.t | relval, R.t | relval) :: relval
-  def intersect(left, right) do
-    {ret, _d} = Map.split(Enum.into(left, %{}), Map.keys(Enum.into(right, %{})))
-    ret
+  def key_from_keys(key) when is_tuple(key) do
+    Tuple.to_list(key)
   end
-  def record_to_map(r, attributes) do
-#    IO.inspect [tuple_to_map: r, att: attributes]
-    [_, k|rest] = Tuple.to_list(r)
-    [:key|arest] = attributes
-    v = Enum.zip(arest, rest)|> Map.new
-#    IO.inspect [tuple_to_map: {k,v}]
-    {k,v}
+  def key_from_keys(key) when is_atom(key) do
+    [key]
   end
-  @spec where(R.t | relval, ({key_set, value_set} -> boolean)) :: relval
-  def where(left = %R{}, f) do 
-#    IO.inspect [left: left.attributes]
-    relname = R.table(left)
-    att = left.attributes
-    qlc = Qlc.q("""
-    [{K, V} || X <- Rel, 
-               F({K,V} = TM(X, A)) =:= true]
-    """, [Rel: relname,
-          A: att,
-          F: f,
-          TM: fn(x,y) -> record_to_map(x, y) end])
-    Qlc.e(qlc) |>
-      Map.new()
+    
+  @type query :: :qlc.qlc_handle()
+  @type t :: %__MODULE__{types: Keyword.t,
+                         keys: list(),
+                         query: nil | query}
+  @rel :_relname
+  @rel :_key
+  def new(%{types: type, body: body, keys: keys, name: name} = p) do 
+    ki = Keyword.keys(type) |> Enum.with_index()
+    query = Enum.map(body, fn(x) ->
+      y = Tuple.to_list(x)
+      ky = Enum.map(keys, &(Enum.at(y, ki[&1])))
+      List.to_tuple([name, make_key_from_keys(ky) | y])
+    end)
+    %__MODULE__{types: type, query: query, keys: keys, name: name}
   end
-  def where(left, f) do
-    Stream.filter(left, f) |> Map.new()
+  def table(t) do
+    t.query
   end
-  @spec project(R.t | relval, [value_name|key_name], boolean) :: relval
-  def project(left, attributes, take \\ true) do
-    Stream.map(left, fn({k, v}) ->
-      {take_set, rest_set} = Map.split(Map.merge(k, v), attributes)
-      if (take) do
-        {take_set, %{}}
-      else
-        {rest_set, %{}}
-      end
-    end) |> Map.new()
+  @spec execute(t) :: list()
+  def execute(%__MODULE__{} = relval) do
+    IO.inspect [execute: relval]
+    Logger.info(:qlc.info(relval.query))
+    Qlc.e(relval.query)
   end
-  @spec fields(R.t|relval) :: list
-  def fields(left = %R{}) do
-    [:key|att] = left.attributes
-    {left.keys, att}
+  def execute(e) when is_tuple(e) do
+    IO.inspect [execute: e]
+    e
   end
-  def fields(left) do
-    case Map.keys(left) do
-      [] ->
-        {[], []}
-      [h|_] ->
-        v = Map.get(left, h)
-        {Map.keys(h), Map.keys(v)}
+  @spec set_operation((query, query, atom -> query), t, t) :: t | {:error, :bad_reltype}
+  def set_operation(f, left, right) do
+    case left.types == right.types  do
+      true ->
+        types = [@relname, @key | Keyword.keys(left.types)]
+        rtypes = Enum.with_index([@relname, @key | Keyword.keys(right.types)])
+        q = f.(left.query, right.query, left.name)
+        IO.puts :qlc.info(q)
+        %__MODULE__{types: right.types, query: q}
+      false ->
+        {:error, :bad_reltype}
     end
   end
-  def rename(left, old, newname) do
-    Enum.map(left, fn({k, v}) ->
-      case Map.fetch(k, old) do
-        {:ok, value} ->
-          {Map.delete(k, old) |> Map.put(newname, value), v}
-        :error ->
-          case Map.fetch(v, old) do
-            {:ok, value} ->
-              {k, Map.delete(v, old) |> Map.put(newname, value)}
-            :error ->
-              {k, v}
-          end
-      end
-    end) |> Map.new
+  @spec union(t, t) :: t
+  def union(left, right) do
+    fn(lq, rq, name) ->
+      Qlc.q("[erlang:setelement(1, X, Y) || X <- Q]",
+            [Q: :qlc.append(lq, rq),
+             Y: name],
+            [unique: true])
+    end
+    |> set_operation(left, right)
   end
-  @doc """
-  add name attribute to relval.
-  """
-  @spec extend(R.t|relval, atom, (key_set, value_set -> any)) :: relval
-  def extend(relval, name, f) do
-    Enum.map(relval, fn({k,v}) -> 
-      {k, Map.put(v, name, f.({k, v}))}
-    end)|>Map.new()
+  @spec union(t, t) :: t
+  def intersect(left, right) do
+    e = left.name
+    IO.inspect [intersect: left.name]
+    fn(lq, rq, name) ->
+      Qlc.q("[X || X <- Q1, Y <- Q2, X =:= setelement(1, Y, M)]", 
+            [Q1: lq, 
+             M: name,
+             Q2: rq],
+            [unique: true])
+    end
+    |> set_operation(left, right)
   end
-  @spec join(R.t|relval, R.t|relval, (map, map, map -> map)) :: map
-  def join(left, right, f) do
-    {lk, lv} = fields(left)
-    {rk, rv} = fields(right)
-#    IO.inspect [rk: rk, rv: rv]
-    la = MapSet.union(MapSet.new(lk), MapSet.new(lv))
-    ra = MapSet.union(MapSet.new(rk), MapSet.new(rv))
-    fjkeys = MapSet.intersection(la, ra) |> MapSet.to_list
-#    IO.inspect [fjkeys_base: {la, ra}, fjkeys: fjkeys]
-    for {lk, lv} <- left, {rk, rv} <- right, 
-      {left_comp, left_rest} = Map.split(Map.merge(lk, lv), fjkeys),
-      {right_comp, right_rest} = Map.split(Map.merge(rk, rv), fjkeys),
-      left_comp == right_comp do
-        f.(left_comp, left_rest, right_rest)
-    end |> Map.new
+  @spec is_exists(t, tuple, (tuple -> tuple)) :: t
+  def is_exists(query, e, f \\ fn(x) -> x end) do
+    r = Qlc.q("[true || X <- Q, F(X) =:= F(E)]", 
+              [Q: query, E: e, F: f], 
+              [unique: true])
+    r
   end
-  @spec fnjoin(R.t | relval, R.t | relval) :: relval
-  @doc """
-  natural join left and right.
-
-  left and right are RelationalVariable or retational value(relval)
-  result map's key part are 
-   common attribute, left only attribute, right only attribute.
-  value part is %{}.
-  """
-  def fnjoin(left, right) do
-    join(left, right, fn(left_comp, left_rest, right_rest) ->
-      {Map.merge(left_comp, left_rest) |>Map.merge(right_rest), %{}}
-    end)
+  @spec filter(t, (tuple -> bool) ) :: t
+  def filter(query, f) do
+    Qlc.q("[X || X <- Q, F(X)]", [Q: query, F: f],
+          [unique: true])
   end
-  @spec matching(R.t | relval, R.t | relval) :: relval
-  @doc """
-  semijoin left, right 
-  """
-  def matching(left, right) do
-    join(left, right, fn(left_comp, left_rest, _right_rest) ->
-      {Map.merge(left_comp, left_rest), %{}}
-    end)
-  end
-  def grouping(e, map, fun) do
-    Enum.reduce(e, map, fn(entry, categories) ->
-      Map.update(categories, fun.(entry), [entry], 
-                 fn %{} ->
-                     [entry]
-                   x ->
-                     [entry|x]
-                 end)
-    end)
-  end
-  @spec max(map, value_set, atom, atom) :: map
-  def count(m, v, count_label, label) do
-    qd = case Map.get(v, count_label) do
-           nil -> 0
-           _q -> 1
-         end
-    Map.update(m, label, qd, fn(x) ->
-      x + 1
-    end)
+  @spec minus(t, t) :: t
+  def minus(left, right) do
+    fn(lq, rq, name) -> 
+      r = &( (is_exists(rq, &1, 
+                        fn(x) -> 
+                          :erlang.setelement(1, x, name)
+                        end) |> Qlc.e()) == [] )
+      filter(lq, r)
+    end
+    |> set_operation(left, right)
   end
   
-  @spec max(map, value_set, atom, atom) :: map
-  def max(m, v, target_label, label) do
-    qd = case Map.get(v, target_label) do
-           nil -> 0
-           q -> q
-         end
-    Map.update(m, label, qd, fn(x) ->
-      case (qd >= x) do
-        true -> qd
-        false -> x
-      end
-    end)
+  def extract_common_keys(la, ra) do
+    {fkeys, rarest} = Enum.split_with(ra, fn(x) -> Enum.member?(la, x) end)
   end
-  @doc """
-  summarize operator
 
-  summarize left per right, calculate and add new tuple value.
-  """
-  @spec summarize(relval|Relvar.t, relval|Relvar.t, [add: (map, {key_set, value_set} -> map)]) :: relval
-  def summarize(left, right, [add: summary_list_fun]) do
-    g = grouping(left, right, 
-                 fn({k, _v}) -> 
-                   {km, _vm} = Enum.at(right, 0)
-                   keys = Map.keys(km)
-                   sk = Map.take(k, keys)
-                   case Map.get(right, sk) do
-                     nil ->
-                       nil
-                     _v ->
-                       sk
-                   end
-                 end)
-#    IO.inspect [grouped: g]
-    Enum.filter_map(g, fn({k, _v}) -> 
-      case k do
-        nil -> false
-        _ -> true
-      end
-    end,
-      fn({k,v}) -> 
-        {k, case v do
-              %{} ->
-                summary_list_fun.(%{}, %{})
-              v ->  
-                Enum.reduce(v, %{}, 
-                            fn ({ks, vs}, a) -> 
-                              summary_list_fun.(a, Map.merge(ks, vs))
-                            end)
-            end}
-      end)
+  def do_natural_join(left, right, pf, pt, pk) do
+    la = Keyword.keys(left.types)
+    ra = Keyword.keys(right.types)
+    {fkeys, rarest} = extract_common_keys(la, ra)
+    lai = Enum.with_index(la, 3)
+    rai = Enum.with_index(ra, 3)
+    s = Enum.map(fkeys, fn(x) -> 
+      "element(#{lai[x]}, Left) =:= element(#{rai[x]}, Right)"
+    end) |> Enum.join(",") |> to_char_list()
+    IO.inspect [njoin: s, fkeys: fkeys, lai: lai, rai: rai]
+    IO.inspect [left: Qlc.e(left.query), right: Qlc.e(right.query)]
+    s0 = '[ F(Left, Right) || '
+#    s0 = '[ { Left, Right } || '
+    s1 = 'Left <- L, Right <- R, '
+    s2 = s0 ++ s1 ++ s ++ ' ].'
+    IO.inspect [string: s2, right_keys: right.keys, rarest: rarest]
+    types = pt.(left.types, rarest, right.types)
+    keys = pk.(left.keys, fkeys, right.keys)
+    q = :qlc.string_to_handle(s2, [], 
+                              [L: left.query,
+                               R: right.query,
+                               F: fn(x, y) -> pf.(x, fkeys, y, rai, rarest) end
+                              ])
+    IO.puts :qlc.info(q)
+    IO.inspect [Q: :qlc.eval(q)]
+    IO.inspect [ret: %{types: types, keys: keys, query: q, lkey: left.keys,
+                       rkey: right.keys,
+                       ltype: left.types,
+               rtype: right.types,
+               fkeys: fkeys}]
+    %__MODULE__{types: types, keys: keys, query: q}
+#    IO.inspect [types: Keyword.drop(right.types, fjkeys)]
+  end
+  @spec matching(t, t) :: t
+  def matching(left, right) do
+    do_natural_join(left, right, 
+                    fn(x, _fk, _y, _rai, _rarest) -> x end, 
+                    fn(l, _c, _r) -> l end, 
+                    fn(l, _fk, _r) -> l end)
+  end
+  @spec join(t, t) :: t
+  def join(left, right) do
+    f = fn(x,y) -> :"#{x}_#{y}" end
+    do_natural_join(left, right, 
+          fn(x, fkeys, y, rai, rarest) -> 
+            tl = elem(x, 0)
+            tr = elem(y, 0)
+            t = f.(tl,tr)
+#            kl = Tuple.to_list(elem(x, 1))
+            kl = key_from_keys(elem(x, 1))
+            kr = key_from_keys(elem(y, 1))
+            k = List.to_tuple(kl ++ (kr -- 
+              Enum.map(fkeys, fn(x) -> 
+                elem(y, rai[x]-1) 
+              end)))
+            k = case k do
+                  {m} -> m
+                  k -> k
+                end
+            rrest = Enum.map(rarest, fn(x) ->
+              IO.inspect [rrest: rai, x: x, y: y]
+                elem(y, rai[x]-1) 
+            end)
+            xrest = Tuple.to_list(x) |> Enum.drop(2)
+            y = [t, k | xrest ++ rrest]
+#            IO.inspect [y: y, x: x]
+            List.to_tuple(y)
+          end, 
+          fn(l, rarest, r) -> 
+            l ++ Enum.map(rarest, &({&1, r[&1]}))
+          end, 
+          fn(l, fkeys, r) -> 
+            l ++ (r -- fkeys)
+          end)
+  end
+
+  def do_project(left, exp, bool \\ true) do
+    IO.inspect [project: left.types]
+    key = Keyword.keys(left.types)
+    keys = Enum.with_index(key, 3)
+    IO.inspect [keys: keys, exp: exp]
+    s = Enum.map(exp, fn(x) -> "element(#{keys[x]}, X)" end) 
+        |> Enum.join(",") 
+        |> to_char_list()
+    v = :erl_eval.add_binding(:Q, left.query, :erl_eval.new_bindings())
+    k = make_key_from_keys(key)
+    IO.inspect [project: k, key: key]
+    q = if length(exp) == 1 do
+      '[ { element(1, X), #{s}, #{s} } || X <- Q ].'
+      else
+      '[ { element(1, X), {#{s}}, #{s} } || X <- Q ].'
+    end
+    IO.inspect [q: q, v: v]
+    ret = %Relval{
+      name: left.name,
+      keys: key,
+      types: Enum.map(exp, fn(x) -> {x, Keyword.get(left.types, x) } end),
+      query: :qlc.string_to_handle(q, [unique: true], v)
+    }
+    IO.inspect [ret: ret]
+    ret
+  end
+  defmacro project(left, exp, bool \\ true) do
+    s = Macro.escape(exp)
+    ret = Macro.prewalk(s, fn({:{}, _, [a, _, nil]}) when is_atom(a) ->
+      a
+      (x) -> x
+    end)
+    r = case ret do
+          {:{}, _, [:{}, _, x]} -> x
+          {a, b} -> [a, b]
+        end
+    IO.inspect [s: s, exp: exp, r: r]
+    quote bind_quoted: [left: left, bool: bool, r: r] do
+      Relval.do_project(left, r, bool)
+    end
+  end
+  def trans(exp, keys) do
+    Macro.prewalk(exp, [], 
+                  fn ({:"==", m, [{:"{}", m2, arg}, s]} = z, acc) ->
+                    IO.inspect [trans: z, arg: arg, keys: keys]
+                    if (arg == keys) do
+                      {{:"==", m, [@key, s]}, acc}
+                    else
+                      {z, acc}
+                    end
+                    ({:"==", m, [{{a1, _, nil}, {a2, _, nil}}, s]} = z, acc) ->
+                      IO.inspect [trans2: z, arg: {a1, a2}, keys: keys]
+                      if ([a1, a2] == keys) do
+                        IO.inspect [trans23: z, arg: {a1, a2}, keys: keys]
+                        {{:"==", m, [{@key, m, nil}, s]}, acc}
+                      else
+                        {z, acc}
+                      end
+                    (z, acc) -> 
+                      IO.inspect [trans3: z,  keys: keys]
+                      {z, acc}
+                  end)
+  end
+
+  def do_where(left, exp, binding) do
+    IO.inspect [do_where: exp, binding: binding]
+    {ckey, key, offset, table} = case left do
+                                   %R{} -> 
+                                     {left.keys, 
+                                      Enum.with_index(Keyword.keys(left.types)), 
+                                      3,
+                                      R.table(left)}
+                                   %__MODULE__{} -> 
+                                     {left.keys,
+                                      Enum.with_index(Keyword.keys(left.types)), 
+                                      3,
+                                      __MODULE__.table(left)}
+                                 end
+    {exp2, acc} = trans(exp, ckey)
+    IO.puts Macro.to_string(exp2)
+    r = Macro.prewalk(exp2, fn(x) ->
+      s = case x do
+            {v, m, nil} when is_atom(v) -> 
+              if ([v] == ckey or v == @key) do
+                {:element, m, [2, {:X, m, nil}]}
+              else
+                case Keyword.fetch(key, v) do
+                  {:ok, i} ->
+                    IO.inspect [key: key, v: v, exp2: exp2, offset: offset]
+                    s = {:element, m, [i + offset, {:X, m, nil}]}
+                  :error ->
+                    case Keyword.fetch(binding, v) do
+                      {:ok, m} ->
+                        m
+                      :error ->
+                        x
+                    end
+                end
+              end
+            _ ->
+              x
+          end
+      #      IO.inspect [s: s]
+      s
+    end)
+    IO.puts n = Macro.to_string(r, &fmt/2)
+    q = :qlc.string_to_handle('''
+    [ X || X <- Q,
+    #{n} ].
+    ''', [], :erl_eval.add_binding(:Q, table, :erl_eval.new_bindings()) )
+    IO.puts :qlc.info(q)
+#    Qlc.e(q)
+#    %__MODULE__{types: Map.get(left, :types), query: q}
+    q
+  end
+  def fmt(ast, x) do
+#    IO.inspect [fmt: ast, x: x]
+    case ast do
+      {:"==", m, [a, b]} ->
+        r = Macro.to_string(a, &fmt/2) <> " =:= " <> Macro.to_string(b, &fmt/2)
+        r
+      {:"!=", m, [a, b]} ->
+        r = Macro.to_string(a, &fmt/2) <> " =/= " <> Macro.to_string(b, &fmt/2)
+        r
+      {:and, m, [a, b]} ->
+        Macro.to_string(a, &fmt/2) <> ", " <> Macro.to_string(b, &fmt/2)
+      {:or, m, [a, b]} ->
+        Macro.to_string(a, &fmt/2) <> "; " <> Macro.to_string(b, &fmt/2)
+      x when is_atom(x) ->
+       "#{x}"
+      _ ->
+        x
+    end
+  end
+  defmacro where(left, binding \\ [], exp) do
+#    m = IO.puts Macro.to_string(exp)
+    s = Macro.escape(exp)
+    q = quote bind_quoted: [left: left, exp: s, binding: binding] do
+#      IO.puts Macro.to_string(exp)
+#      IO.puts Macro.to_string(mexp)
+      %Relval{types: left.types, query: Relval.do_where(left, exp, binding)}
+    end
+#    IO.puts Macro.to_string(q)
+    q
   end
 end

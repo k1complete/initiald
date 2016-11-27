@@ -2,6 +2,7 @@ defmodule TeddTest do
   use ExUnit.Case, async: false
   require Logger
   require Qlc
+  require Constraint
   alias Relvar2, as: R
   alias Relval2, as: L
   require Reltype
@@ -10,7 +11,11 @@ defmodule TeddTest do
   setup_all do
     :mnesia.start
     Reltype.init
+    Constraint.init
     setup()
+    on_exit fn() ->
+      Constraint.destroy
+    end
     :ok
   end
   def setup() do
@@ -135,11 +140,6 @@ defmodule TeddTest do
                                                {"s5", 0, 0}])}}
   end
   test "constraint create" do
-    Constraint.init()
-    on_exit fn ->
-               IO.puts "exit"
-               Constraint.destroy()
-    end
     R.t(fn() ->
       Constraint.create("s_sp_fk", [:s, :sp], 
                       fn(_rel) -> 

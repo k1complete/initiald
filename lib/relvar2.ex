@@ -3,9 +3,21 @@ defmodule Relvar2 do
   require Qlc
 #  alias Relval2, as: L
   alias Reltuple, as: T
-
-  defstruct name: nil, types: nil, keys: nil, attributes: nil, constraints: nil
-
+  @key :_key
+  @relname :_relname
+  defstruct name: nil, types: nil, 
+            keys: nil, attributes: nil, constraints: nil,
+            query: nil
+  @type t :: %__MODULE__{name: atom, 
+                         types: Keyword.t, 
+                         keys: [atom], 
+                         constraints: [Constraint.t]|nil,
+                         query: any}
+  @type relvar :: %__MODULE__{name: atom, 
+                         types: Keyword.t, 
+                         attributes: [atom],
+                         constraints: [Constraint.t]|nil,
+                         query: any}
   def add_index(%__MODULE__{name: v} = _relvar, att) do
     :mnesia.add_table_index(v, att)
   end
@@ -34,14 +46,15 @@ defmodule Relvar2 do
   @typedoc """
   Relational variable stored in :mnesia table.
   """
-  @type t :: %__MODULE__{name: atom, types: list, keys: list, constraints: list }
-  @type keys :: tuple
-  @type attributes :: tuple
+
+  @type keys :: [tuple]
+  @type attributes :: [tuple]
   @type relval :: any
+  @type qlc_handle :: :qlc.qlc_handle()
   def t(f) do
     :mnesia.transaction(f)
   end
-  @spec table(__MODULE__.t) :: Qlc.qlc_handle()
+  @spec table(__MODULE__.t | atom) :: qlc_handle
   def table(relvar) when is_atom(relvar) do
     :mnesia.table(relvar)
   end
@@ -52,7 +65,7 @@ defmodule Relvar2 do
   def read(relvar, key) do
     :mnesia.read({relvar.name, key})
   end
-  @spec drop(atom | __MODULE__.t) :: :ok | {:abort, any}
+  @spec drop(atom | __MODULE__.t) :: :ok | no_return
   def drop(relname) when is_atom(relname) do
 #    Logger.debug(fn() -> inspect(relname) <> " drop" end)
     :mnesia.delete_table(relname)
@@ -65,7 +78,7 @@ defmodule Relvar2 do
 
   - type checking in attributeset
   """
-  @spec create(atom, list, [{atom, any}]) :: __MODULE__.t | no_return
+  @spec create(atom, list, [{atom, any}]) :: %__MODULE__{} | no_return
   def create(name, keys, attribute_def) when is_list(keys) and is_atom(name) and is_list(attribute_def) do
     v = Keyword.values(attribute_def)
     {:atomic, s} = t(fn() ->
@@ -79,7 +92,7 @@ defmodule Relvar2 do
     case (v -- s) do
       [] ->
         attribute_keys = Keyword.keys(attribute_def)
-        attributes = [:key|attribute_keys]
+        attributes = [@key|attribute_keys]
         tabledefs = [type: :set,
                      attributes: attributes,
                      user_properties: [keynames: keys,
@@ -97,25 +110,27 @@ defmodule Relvar2 do
                          diff: r}})
     end
   end
+  @spec types(atom) :: [{atom, any}]
   def types(name) when is_atom(name) do
     :mnesia.table_info(name, :user_properties) |>
     Keyword.get(:types)
   end
-  @spec to_relvar(atom) :: __MODULE__.t
+  @spec to_relvar(atom) :: %__MODULE__{name: atom, attributes: [atom], }
   def to_relvar(name) when is_atom(name) do
     s = :mnesia.table_info(name, :all)
     u = Keyword.get(s, :user_properties)
     %__MODULE__{name: name, 
                 attributes: Keyword.get(s, :attributes),
                 types: Keyword.get(u, :types),
-                keys: Keyword.get(u, :keynames)}
+                keys: Keyword.get(u, :keynames),
+                query: :mnesia.table(name)}
   end
   @doc """
   validate {k, v} record by type map before writing.
   
   output: invalid {attribute, {type, value}} list.
   """
-  @spec valid(tuple, [{atom, any}]) :: list
+  @spec valid(list, [{atom, any}]) :: [any()] | {:error,atom(),:bad_object | {:bad_object,atom() | [atom() | [any()] | char()]} | {:bad_term,atom() | [atom() | [any()] | char()]} | {:premature_eof,atom() | [atom() | [any()] | char()]} | {:file_error,atom() | [atom() | [any()] | char()],atom()}}
   def valid(v, types) when is_list(v) and is_list(types) do
 #    IO.inspect [v: v, types: types]
     qc = Qlc.q("""
@@ -128,7 +143,7 @@ defmodule Relvar2 do
              Definition(V = element(2,lists:keyfind(Name, 1, AttributeSet))) =:= false]
     """, [AttributeSet: v,
           Type: types, RelType: Reltype.table])
-    Qlc.e(qc) 
+    :qlc.e(qc) 
   end
   @spec to_tuple(atom, {map, map}, list) :: tuple
   @doc """
@@ -146,7 +161,7 @@ defmodule Relvar2 do
     |> Enum.reverse()
   end
   def get_keys(t, index_list) do
-#    IO.inspect([:t, t])
+#    IO.inspect([t: t, index_list: index_list])
     r = Enum.map(index_list, &(elem(t, &1))) 
         |> List.to_tuple()
     case r do
@@ -167,7 +182,7 @@ defmodule Relvar2 do
   translate: {table_name, %{key1: aaa}, value1, value2}
   """
   @type reason :: tuple
-  @spec write(atom|__MODULE__.t, tuple) :: :ok | {reason, atom, map}
+  @spec write(atom|__MODULE__.t, tuple) :: :ok 
   def write(relvar = %__MODULE__{}, t) do
     types = relvar.types
     name = relvar.name
@@ -180,7 +195,7 @@ defmodule Relvar2 do
         Tuple.insert_at(t, 0, keyitem)
         |> Tuple.insert_at(0, name)
         |> :mnesia.write()
-##        |> Constraint.validate
+        Constraint.validate([relvar.name])
       ret ->
         :mnesia.abort({:typecheck_error, name, Enum.into(ret, %{})})
     end
@@ -197,19 +212,24 @@ defmodule Relvar2 do
   #  end
   def map_to_tuple(new, relvar) do
     #keys = relvar.keys
-    [:key|attributes] = relvar.attributes
+    [@key|attributes] = relvar.attributes
     :erlang.list_to_tuple(Enum.map(attributes, fn(e) -> Map.get(new, e) end))
   end
+  @spec update_or_replace(T.t, T.t, %__MODULE__{}) :: :ok
   def update_or_replace(new, old, relvar) do
     keys = relvar.keys
     IO.inspect [update_or_replace: new, old: old, relvar: relvar]
 #    new = Map.merge(old, new);
     new_keys = Reltuple.take(new, keys)
     old_keys = Reltuple.take(old, keys)
+    IO.inspect [u_o_r_old_keys: old_keys]
+    IO.inspect [u_o_r_new_keys: new_keys]
 #    new_keys = List.to_tuple(Enum.map(keys, &(new_keys[&1])))
 #    old_keys = List.to_tuple(Enum.map(keys, &(old_keys[&1])))
     if (!Reltuple.equal?(new_keys, old_keys)) do
-      delete(relvar, old_keys.tuple)
+      IO.inspect [new_keys: new_keys, old_keys: old_keys]
+      delete(relvar, old.tuple)
+      IO.inspect [delete_done: old_keys]
     end
 #    IO.inspect([update_or_replace: t])
     write(relvar, new.tuple)
@@ -220,19 +240,19 @@ defmodule Relvar2 do
       false -> raise(RuntimeError, "constraint violation");
     end
   end
-  @spec update(relval,  __MODULE__.t) :: relval
+  @spec update(L.t,  %__MODULE__{}) :: list
   def update(left, %__MODULE__{} = relvar) when is_map(left) do
     Enum.map(left, fn(t) -> 
       write(relvar, t) 
     end)
   end
-  @spec update(relval, (tuple -> tuple), __MODULE__.t) :: relval
+  @spec update(relval, (tuple -> tuple), __MODULE__.t) :: no_return
   def update(relval, updatefn, %__MODULE__{} = relvar) do
-    IO.inspect [update: relval]
+#    IO.inspect [update: relval]
     Enum.map(relval.body, fn(x) -> 
-      IO.inspect [relval: x]
+#      IO.inspect [relval: x]
       old_map = T.new(x, relval.types)
-      IO.inspect [oldmap: old_map]
+#      IO.inspect [oldmap: old_map]
       updatefn.(old_map) |>
 #      constraint(old_map, relvar)|>
 #      merge_map_to_tuple(old, relvar) |>
@@ -244,8 +264,11 @@ defmodule Relvar2 do
   end
   @spec delete(__MODULE__.t, keys) :: :ok | :no_return
   def delete(relvar, t) do
+    IO.inspect [delete_t: t]
     keyitem = get_key_from_tuple(t, relvar)
+    IO.inspect [delete_t_keyitem: keyitem]
     :mnesia.delete({relvar.name, keyitem})
+     :ok
   end
   
 end
@@ -287,7 +310,7 @@ defimpl Enumerable, for: Relvar2 do
   end
   def reduce(v, {:cont, acc}, fun) do
 #    Logger.debug fn() -> inspect([reduce: v]) end
-#    [:key|attribute_set] = v.attributes
+#    [@key|attribute_set] = v.attributes
     {_, ret} = :mnesia.foldl(
       fn(e, {:cont, acc}) ->
           t = Relutil.record_to_tuple(e)

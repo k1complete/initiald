@@ -42,7 +42,7 @@ defmodule Reltype do
   @doc """
   get tableinfo for QLC
   """
-  @spec table() :: {:qlc_handle, term}
+  @spec table() :: :qlc.qlc_handle()
   def table() do
     :mnesia.table(@reltype)
   end
