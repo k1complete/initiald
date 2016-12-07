@@ -4,7 +4,8 @@ defmodule TeddTest do
   require Qlc
   require Constraint
   alias Relvar2, as: R
-  alias Relval2, as: L
+  alias Relval, as: L
+  require Relval
   require Reltype
   @moduletag :test2
 
@@ -119,25 +120,42 @@ defmodule TeddTest do
     IO.inspect [s: s]
     _p = Map.get(c,:p)
     sp = Map.get(c, :sp)
+    IO.inspect [sp: sp, s: s]
+
+    r = R.t(fn() ->
+      IO.inspect [L: L.project(s, [:sno]) |> L.where(sno == "s1") |> L.execute()]
+    end)
+    r = R.t(fn() ->
+      IO.inspect [Matching: L.matching(sp, L.project(s, [:sno]) |> 
+                   L.where(sno == "s1")) |> L.execute()]
+    end)
     r =R.t(fn() ->
       L.summarize(sp, 
-                  L.where(L.project(s, [:sno]), fn(k) ->
-#                    IO.inspect [tuple: k, k: k[:sno]]
-                    k[:sno] in [ "s1" , "s2", "s3", "s5" ]
-                  end), 
-                  add: {fn(t, r) ->
-                         L.count(t, r)
-                         |> L.max(r, :qty)
+                  L.where(L.project(s, [:sno]), 
+                  (sno == "s1" or sno == "s2" or sno == "s3" or sno == "s5" )
+                  ),
+                  add: {fn(t) ->
+                         IO.puts 'QLC: ' ++  :qlc.info(t.query)
+                         IO.inspect [Tuple: t, 
+                                     List: L.execute(t),
+                                     QLC: ""]
+                         {L.count(t),
+                          L.max(t, :qty)}
                        end, 
-                        [pccount: :int, qmax: :int]
+                        [pccount: :int, 
+                         qmax: :int]
                        }
-      )
+      ) |> L.execute() |> Enum.sort()
     end)
-    assert r == {:atomic, %L{types: [sno: :sno, pccount: :int, qmax: :int],
-                             body: MapSet.new([{"s1", 6, 400},
-                                               {"s2", 2, 400},
-                                               {"s3", 1, 200},
-                                               {"s5", 0, 0}])}}
+    assert r == {:atomic, L.new(%{types: [sno: :sno, pccount: :int, qmax: :int],
+                                  keys: [:sno],
+                                  name: :s,
+                                  body: [{"s1", 6, 400},
+                                         {"s2", 2, 400},
+                                         {"s3", 1, 200},
+                                         {"s5", 0, nil}]})
+                 |> L.execute() |> Enum.sort()
+                }
   end
   test "constraint create" do
     R.t(fn() ->

@@ -217,7 +217,7 @@ defmodule Relational_Test3 do
                   keys: [:id2, :id3],
                   name: :test3})
 #      IO.inspect(m: m)
-      m2 = L.project(relvar, {value, id2})
+      m2 = L.project(relvar, [:value, :id2])
       q2 = Qlc.q("[X || X <- Q]", [Q: m2.query])
       IO.inspect [m2: m2]
       m3 = L.where(m2, [], id2 == a2)
@@ -243,7 +243,7 @@ defmodule Relational_Test3 do
                   keys: [:id2, :id3],
                   name: :test3})
 #      IO.inspect(m: m)
-      m2 = L.join(relvar, m) |> L.project({value, id2, id3})
+      m2 = L.join(relvar, m) |> L.project([:value, :id2, :id3])
       q2 = Qlc.q("[X || X <- Q]", [Q: m2.query])
       IO.inspect [m2: m2]
       m3 = L.where(m2, [], id2 == a2)

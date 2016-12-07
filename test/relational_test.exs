@@ -206,7 +206,7 @@ defmodule RelationalTest do
     create_type()
     relvar = R.to_relvar(:test2)
     assert R.t(fn() ->
-      L.project(relvar, {value}) |> L.execute() |> Enum.sort()
+      L.project(relvar, [:value]) |> L.execute() |> Enum.sort()
     end) == {:atomic, L.new(%{body: [{2},{4}],
                               types: [value: :odd],
                               name: :test2,

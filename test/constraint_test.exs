@@ -111,7 +111,7 @@ defmodule ConstraintTest do
     t = R.t(fn() -> 
       R.write(:test2, {:id2, 6})
       Constraint.validate([:test2])
-      L.project(R.to_relvar(:test2), {id, value}) |> L.execute()
+      L.project(R.to_relvar(:test2), [:id, :value]) |> L.execute()
     end)
     assert {:atomic, 
             L.new(%{body: [{:id2, 6}],

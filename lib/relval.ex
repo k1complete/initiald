@@ -3,7 +3,7 @@ defmodule Relval do
   require Logger
   alias Relvar2, as: R
   defstruct types: Keyword.new(), keys: [], query: nil, name: nil
-
+  
   def make_key_from_keys([key]) do
     key
   end
@@ -16,7 +16,6 @@ defmodule Relval do
   def key_from_keys(key) when is_atom(key) do
     [key]
   end
-    
   @type query :: :qlc.qlc_handle()
   @type t :: %__MODULE__{types: Keyword.t,
                          keys: list(),
@@ -31,6 +30,9 @@ defmodule Relval do
       List.to_tuple([name, make_key_from_keys(ky) | y])
     end)
     %__MODULE__{types: type, query: query, keys: keys, name: name}
+  end
+  def raw_new(%{types: type, body: body, keys: keys, name: name} = p) do
+    %__MODULE__{types: type, query: body, keys: keys, name: name}
   end
   def table(t) do
     t.query
@@ -211,20 +213,8 @@ defmodule Relval do
     IO.inspect [ret: ret]
     ret
   end
-  defmacro project(left, exp, bool \\ true) do
-    s = Macro.escape(exp)
-    ret = Macro.prewalk(s, fn({:{}, _, [a, _, nil]}) when is_atom(a) ->
-      a
-      (x) -> x
-    end)
-    r = case ret do
-          {:{}, _, [:{}, _, x]} -> x
-          {a, b} -> [a, b]
-        end
-    IO.inspect [s: s, exp: exp, r: r]
-    quote bind_quoted: [left: left, bool: bool, r: r] do
-      Relval.do_project(left, r, bool)
-    end
+  def project(left, r, bool \\ true) do
+    Relval.do_project(left, r, bool)
   end
   def trans(exp, keys) do
     Macro.prewalk(exp, [], 
@@ -248,7 +238,6 @@ defmodule Relval do
                       {z, acc}
                   end)
   end
-
   def do_where(left, exp, binding) do
     IO.inspect [do_where: exp, binding: binding]
     {ckey, key, offset, table} = case left do
@@ -312,7 +301,9 @@ defmodule Relval do
       {:and, m, [a, b]} ->
         Macro.to_string(a, &fmt/2) <> ", " <> Macro.to_string(b, &fmt/2)
       {:or, m, [a, b]} ->
-        Macro.to_string(a, &fmt/2) <> "; " <> Macro.to_string(b, &fmt/2)
+        Macro.to_string(a, &fmt/2) <> " orelse " <> Macro.to_string(b, &fmt/2)
+      x when is_binary(x) ->
+       "<<\"#{x}\">>"
       x when is_atom(x) ->
        "#{x}"
       _ ->
@@ -329,5 +320,64 @@ defmodule Relval do
     end
 #    IO.puts Macro.to_string(q)
     q
+  end
+  def extend(left, f, [{a, t}]) do
+    q = Qlc.q("[erlang:append_element(F(R), R) || R <- Left]",
+      [F: fn(x) -> f.(x) end,
+      Left: left.query])
+    %Relval{types: left.types ++ [{a, t}],
+            query: q,
+            name: left.name,
+            keys: left.keys}
+  end
+  def count(left) do
+    r = :qlc.fold(fn(_x, a) -> a + 1 end, 0, left.query)
+    IO.inspect [count: r ]
+    r
+  end
+  def min(left, param) do
+    :qlc.fold(
+      fn(x, nil) -> elem(x, param)
+        (x, a) -> 
+          y = elem(x, param)
+          if (y < a) do
+            y
+          else
+            a 
+          end
+      end, nil, left.query)
+  end
+  def max(left, p) do
+    param = Keyword.keys(left.types) |> Enum.with_index(2) |> Keyword.get(p)
+    :qlc.fold(
+      fn(x, nil) -> elem(x, param)
+        (x, a) -> 
+          y = elem(x, param)
+          if (y > a) do
+            y
+          else
+            a 
+          end
+      end, nil, left.query)
+  end
+  def summarize(left, right, add: {summary_fun, summary_types}) do
+    q = Qlc.q("[list_to_tuple(tuple_to_list(R)++tuple_to_list(F(R))) || R <- Right]",
+              [F: 
+               fn(x) -> 
+                 keys = Keyword.keys(right.types)
+                 IO.inspect [XXX: x, name: elem(x, 0), key: keys,
+                             types: right.types]
+                 summary_fun.(Relval.matching(
+                       left, 
+                       Relval.raw_new(%{body: [x],
+                                        types: right.types,
+                                        name: elem(x, 0),
+                                        keys: Keyword.keys(right.types)})))
+               end,
+               Right: right.query])
+    IO.inspect [summarize_debug: Relval.execute(q)]
+    %Relval{types: right.types ++ summary_types, 
+            query: q, 
+            name: right.name, keys: right.keys}
   end
 end
