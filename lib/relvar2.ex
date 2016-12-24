@@ -218,18 +218,18 @@ defmodule Relvar2 do
   @spec update_or_replace(T.t, T.t, %__MODULE__{}) :: :ok
   def update_or_replace(new, old, relvar) do
     keys = relvar.keys
-    IO.inspect [update_or_replace: new, old: old, relvar: relvar]
+#    IO.inspect [update_or_replace: new, old: old, relvar: relvar]
 #    new = Map.merge(old, new);
     new_keys = Reltuple.take(new, keys)
     old_keys = Reltuple.take(old, keys)
-    IO.inspect [u_o_r_old_keys: old_keys]
-    IO.inspect [u_o_r_new_keys: new_keys]
+#    IO.inspect [u_o_r_old_keys: old_keys]
+#    IO.inspect [u_o_r_new_keys: new_keys]
 #    new_keys = List.to_tuple(Enum.map(keys, &(new_keys[&1])))
 #    old_keys = List.to_tuple(Enum.map(keys, &(old_keys[&1])))
     if (!Reltuple.equal?(new_keys, old_keys)) do
-      IO.inspect [new_keys: new_keys, old_keys: old_keys]
+#      IO.inspect [new_keys: new_keys, old_keys: old_keys]
       delete(relvar, old.tuple)
-      IO.inspect [delete_done: old_keys]
+#      IO.inspect [delete_done: old_keys]
     end
 #    IO.inspect([update_or_replace: t])
     write(relvar, new.tuple)
@@ -264,9 +264,9 @@ defmodule Relvar2 do
   end
   @spec delete(__MODULE__.t, keys) :: :ok | :no_return
   def delete(relvar, t) do
-    IO.inspect [delete_t: t]
+#    IO.inspect [delete_t: t]
     keyitem = get_key_from_tuple(t, relvar)
-    IO.inspect [delete_t_keyitem: keyitem]
+#    IO.inspect [delete_t_keyitem: keyitem]
     :mnesia.delete({relvar.name, keyitem})
      :ok
   end

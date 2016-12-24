@@ -5,11 +5,22 @@ defmodule Reltuple do
   @spec new(tuple, [{atom, any}]) :: %__MODULE__{}
   def new(val, types) do
 #    IO.inspect [module: :Reltuple, val: val, types: types]
-    %__MODULE__{tuple_index: Enum.with_index(Keyword.keys(types)) |> Map.new(), 
+    ret = %__MODULE__{tuple_index: Enum.with_index(Keyword.keys(types)) |> Map.new(), 
+                    tuple: val,
+                    types: types}
+    Enum.all?(types, fn({k, v}) -> 
+      case Reltype.validate(v, ret[k]) do
+        true -> true
+        _ -> raise(RelType.TypeConstraintError, [type: v, value: ret[k], attribute: k])
+      end
+    end)
+    ret
+  end
+  def raw_new(val, types) do
+    %__MODULE__{tuple_index: Enum.with_index(Keyword.keys(types), 2) |> Map.new(), 
       tuple: val,
       types: types}
-  end
-  
+  end    
   def fetch(%__MODULE__{tuple_index: i, tuple: t}, key) do
     {:ok, elem(t, i[key])}
   end

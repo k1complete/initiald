@@ -6,6 +6,7 @@ defmodule Relational_Test3 do
   require Reltype
   alias Relvar2, as: R
   alias Relval, as: L
+  require Reltuple
   @moduletag :test5
 
   setup_all do
@@ -106,7 +107,7 @@ defmodule Relational_Test3 do
                   name: :test2})
 #      IO.inspect(m: m)
       m2 = L.union(relvar, m)
-      IO.inspect [m: :qlc.info(m.query), m2: m2]
+#      IO.inspect [m: :qlc.info(m.query), m2: m2]
 #      :qlc.info(m2.query)
       L.execute(m2)|> Enum.sort()
     end) == {:atomic,
@@ -128,7 +129,7 @@ defmodule Relational_Test3 do
                   name: :test2})
 #      IO.inspect(m: m)
       m2 = L.intersect(relvar, m)
-      IO.inspect [m: :qlc.info(m.query), m2: m2]
+#      IO.inspect [m: :qlc.info(m.query), m2: m2]
 #      :qlc.info(m2.query)
       L.execute(m2)|> Enum.sort()
     end) == {:atomic,
@@ -151,7 +152,7 @@ defmodule Relational_Test3 do
                   name: :test2})
 #      IO.inspect(m: m)
       m2 = L.minus(relvar, m)
-      IO.inspect [m: :qlc.info(m.query), m2: m2]
+#      IO.inspect [m: :qlc.info(m.query), m2: m2]
 #      :qlc.info(m2.query)
       L.execute(m2)|> Enum.sort()
     end) == {:atomic,
@@ -173,7 +174,7 @@ defmodule Relational_Test3 do
                   name: :test3})
 #      IO.inspect(m: m)
       m2 = L.join(relvar, m)
-      IO.inspect [m: :qlc.info(m.query), m2: m2]
+#      IO.inspect [m: :qlc.info(m.query), m2: m2]
 #      :qlc.info(m2.query)
       L.execute(m2)|> Enum.sort()
     end) == {:atomic,
@@ -195,7 +196,7 @@ defmodule Relational_Test3 do
                   name: :test3})
 #      IO.inspect(m: m)
       m2 = L.matching(relvar, m)
-      IO.inspect [m: :qlc.info(m.query), m2: m2]
+#      IO.inspect [m: :qlc.info(m.query), m2: m2]
 #      :qlc.info(m2.query)
       L.execute(m2)|> Enum.sort()
     end) == {:atomic,
@@ -212,17 +213,17 @@ defmodule Relational_Test3 do
     relvar = R.to_relvar(:test2)
     
     assert R.t(fn() ->
-      m = L.new(%{types: [id2: :atom, value: :odd, id3: :atom],
-                  body: [{:a2, 4, :a22}],
-                  keys: [:id2, :id3],
-                  name: :test3})
+#      m = L.new(%{types: [id2: :atom, value: :odd, id3: :atom],
+#                  body: [{:a2, 4, :a22}],
+#                  keys: [:id2, :id3],
+#                  name: :test3})
 #      IO.inspect(m: m)
       m2 = L.project(relvar, [:value, :id2])
-      q2 = Qlc.q("[X || X <- Q]", [Q: m2.query])
-      IO.inspect [m2: m2]
+#      q2 = Qlc.q("[X || X <- Q]", [Q: m2.query])
+#      IO.inspect [m2: m2]
       m3 = L.where(m2, [], id2 == a2)
-      IO.inspect [q2: Qlc.e(q2)]
-      IO.inspect [m3: Qlc.e(m3.query)]
+#      IO.inspect [q2: Qlc.e(q2)]
+#      IO.inspect [m3: Qlc.e(m3.query)]
       L.execute(m3)|>  Enum.sort()
     end) == {:atomic,
              L.execute(L.new(%{types: [value: :odd, id2: :atom],
@@ -244,10 +245,10 @@ defmodule Relational_Test3 do
                   name: :test3})
 #      IO.inspect(m: m)
       m2 = L.join(relvar, m) |> L.project([:value, :id2, :id3])
-      q2 = Qlc.q("[X || X <- Q]", [Q: m2.query])
-      IO.inspect [m2: m2]
+#      q2 = Qlc.q("[X || X <- Q]", [Q: m2.query])
+#      IO.inspect [m2: m2]
       m3 = L.where(m2, [], id2 == a2)
-      IO.inspect [q2: Qlc.e(q2)]
+ #     IO.inspect [q2: Qlc.e(q2)]
       L.execute(m3)|>  Enum.sort()
     end) == {:atomic,
              L.execute(L.new(%{types: [value: :odd, id2: :atom, id3: :atom],
@@ -257,4 +258,54 @@ defmodule Relational_Test3 do
             }
     
   end
+  test "tuple" do
+    R.t(fn() ->
+      new = old = Reltuple.new({:id1, 2, :id2}, [id: :atom, value: :odd, id2: :atom])
+      # lfld = fld+exp  --> new = put_in(new[:lfld], old[:fld]+exp)
+      # lfld2 = exp      --> new = put_in(new[:lfld2], exp)
+      new = put_in(new[:id], :atom)
+      new = put_in(new[:id2], old[:id])
+      assert(new.tuple == {:atom, 2, :id1})
+    end)
+  end
+  @tag :update
+  test "update_test" do
+    create_type()
+    relvar = R.to_relvar(:test2)
+    m = L.new(%{types: [id: :atom, value: :odd, id2: :atom],
+                body: [{:atom2, 4, :a2}],
+                keys: [:id, :id2],
+                name: :test3})
+    s2 = {1,2,3,3}
+    s = 3
+    assert {:atomic, _} = R.t(fn() ->
+      m = L.update [s: s] do
+        L.where(relvar, (value == 2)) ->
+#          put_in new[:value], old[:value] * 2
+#          put_in new[:id2], old[:id]
+          [id2: old[:id], value: s+1]
+#          [OK: 1]
+#        L.where(m, (id == :atom2)) ->
+##          put_in new, :value, old[:value]+1
+#          [id2: true]
+      end
+#      L.execute(L.project(relvar, [:id, :value, :id2]))
+    end) 
+  end
+  @tag :update
+  test "update_test_type_constraint_error" do
+    create_type()
+    relvar = R.to_relvar(:test2)
+    s = 2
+    assert {:aborted,
+             {:attribute_type_unmatch,
+              %RelType.TypeConstraintError{attribute: :value, type: :odd,
+               value: 3}}} == R.t(fn() ->
+      m = L.update [s: s] do
+        L.where(relvar, (value == 2)) ->
+          [id2: old[:id], value: s+1]
+      end
+    end) 
+  end
+  
 end

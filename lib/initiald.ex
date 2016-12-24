@@ -7,6 +7,7 @@ defmodule InitialD do
   ##
   ## row is Dict(columnname, value)
   ## table is HashSet(row)
+
   def union(left,right) do
     Set.union(left, right)
   end

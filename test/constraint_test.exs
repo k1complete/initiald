@@ -122,7 +122,8 @@ defmodule ConstraintTest do
       R.to_relvar(:test2) 
       |> R.write({:id2, 4})
     end)
-    IO.inspect [t: t]
+    assert {:aborted, [{false, "test_2_22_check", false}]} == t
+#    IO.inspect [t: t]
     u = R.t(fn() -> 
       R.write(:test2, {:id3, 4})
       Constraint.validate([:test2])

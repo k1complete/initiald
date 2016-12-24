@@ -71,7 +71,7 @@ defmodule RelationalTest do
   test "read_table" do
     create_type()
     r = R.t(fn() ->
-      IO.inspect [:mnesia.all_keys(:test2)]
+#      IO.inspect [:mnesia.all_keys(:test2)]
       :mnesia.read({:test2, :atom2})
     end)
     assert(r == {:atomic, [{:test2, :atom2, :atom2, 4}]})

@@ -107,7 +107,7 @@ defmodule Constraint do
       s = L.minus(fk=L.do_project(fkvar, keys),
                   pk=L.do_project(pkvar, keys))
       c = L.execute(s)
-      IO.inspect [c: c, keys: keys, fkvar: fk, pkvar: pk]
+#      IO.inspect [c: c, keys: keys, fkvar: fk, pkvar: pk]
 
       case Enum.count(c) == 0 do
         true -> 

@@ -96,9 +96,9 @@ defmodule TeddTest do
   test "relational compare", c do
     s = Map.get(c,:s)
 #    p = Map.get(c,:p)
-    sp = Map.get(c, :sp)
+#    sp = Map.get(c, :sp)
     on_exit fn ->
-      IO.puts "destroy"
+#      IO.puts "destroy"
       R.t(fn ->
         :ok
       end)
@@ -109,36 +109,24 @@ defmodule TeddTest do
       assert Enum.count(L.project(sr, [:city])) == 
         Enum.count(L.project(sr, [:city, :status]))
     end)
-    R.t(fn() ->
-      IO.inspect [s_match_sp: L.matching(s, sp)]
-    end)
-    :ok
   end
   @tag :cc
   test "summarize", c do
     s = Map.get(c,:s)
-    IO.inspect [s: s]
     _p = Map.get(c,:p)
     sp = Map.get(c, :sp)
-    IO.inspect [sp: sp, s: s]
+ #   IO.inspect [sp: sp, s: s]
 
-    r = R.t(fn() ->
-      IO.inspect [L: L.project(s, [:sno]) |> L.where(sno == "s1") |> L.execute()]
-    end)
-    r = R.t(fn() ->
-      IO.inspect [Matching: L.matching(sp, L.project(s, [:sno]) |> 
-                   L.where(sno == "s1")) |> L.execute()]
-    end)
     r =R.t(fn() ->
       L.summarize(sp, 
                   L.where(L.project(s, [:sno]), 
                   (sno == "s1" or sno == "s2" or sno == "s3" or sno == "s5" )
                   ),
                   add: {fn(t) ->
-                         IO.puts 'QLC: ' ++  :qlc.info(t.query)
-                         IO.inspect [Tuple: t, 
-                                     List: L.execute(t),
-                                     QLC: ""]
+#                         IO.puts 'QLC: ' ++  :qlc.info(t.query)
+#                         IO.inspect [Tuple: t, 
+#                                     List: L.execute(t),
+#                                     QLC: ""]
                          {L.count(t),
                           L.max(t, :qty)}
                        end, 
@@ -184,7 +172,7 @@ defmodule TeddTest do
     end)
     assert {:aborted, [{false, "p_sp_fk",
                         {:foreign_key, :sp, :p, _}}]} = r
-    IO.inspect [s1: r]
+#    IO.inspect [s1: r]
     r = R.t(fn() ->
       Enum.into([{"s1",  "p6",  1}], 
                 R.to_relvar(:sp))
