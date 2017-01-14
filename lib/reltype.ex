@@ -35,14 +35,15 @@ defmodule Reltype do
   def destroy() do
     :mnesia.delete_table(@reltype)
   end
-  @spec delete(atom) :: :ok | :erlang.error
+  @type erlang_error :: any()
+  @spec delete(atom) :: :ok | erlang_error
   def delete(typename) when is_atom(typename) do
     :mnesia.delete({@reltype, typename})
   end
   @doc """
   get tableinfo for QLC
   """
-  @spec table() :: :qlc.qlc_handle()
+  @spec table() :: :qlc.query_handle()
   def table() do
     :mnesia.table(@reltype)
   end

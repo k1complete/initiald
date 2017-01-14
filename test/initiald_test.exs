@@ -1,5 +1,5 @@
 defmodule TutorialDTest do
   use ExUnit.Case
-  import InitialD
+#  import InitialD
   
 end

@@ -5,13 +5,45 @@ defmodule ReltupleTest do
   alias Reltuple, as: T
   alias Relvar2, as: R
   require Reltuple
+  require Reltype
   @moduletag :tt
+  setup_all do
+    :mnesia.start
+    Reltype.init
+    Constraint.init
+    on_exit fn() ->
+      Constraint.destroy
+    end
+    :ok
+  end
+  setup do
+    m = Reltype.reltype(typename: :atom, 
+                        definition: fn(x) -> is_atom(x) end,
+    cast: fn(x) when is_atom(x) -> x
+            (x) when is_binary(x) -> String.to_atom(x) 
+          end
+    )
+    assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
+    m = Reltype.reltype(typename: :odd, 
+                        definition: fn(x) -> rem(x, 2) == 0 end)
+    assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
+    on_exit fn ->
+#      IO.puts "destroy"
+      R.t(fn ->
+        Reltype.delete(:atom)
+        Reltype.delete(:odd)
+      end)
+    end
+    :ok
+  end
 
   test "tuple_read_access" do
-    val = L.new(%{types: [id: :atom, value: :odd],
-                  keys: [:id],
-                  body: [{:four, 4}],
-                  name: nil})
+    {:atomic, val}  = R.t(fn() -> 
+      L.new(%{types: [id: :atom, value: :odd],
+              keys: [:id],
+              body: [{:four, 4}],
+              name: nil})
+    end)
     R.t(fn() ->
       [t] =  Enum.map(val.query, &(T.new(&1, val.types)))
       #    IO.inspect [t: t]
@@ -20,8 +52,14 @@ defmodule ReltupleTest do
     end)
   end
   test "tuple_access" do
-    val = L.new(%{types: [id: :atom, value: :odd], body: [{:four, 4}], keys: [:id], name: nil})
-    val2 = L.new(%{types: [id: :atom, value: :odd], body: [{:five, 5}], keys: [:id], name: nil})
+    {:atomic, val} = R.t(fn() -> 
+      L.new(%{types: [id: :atom, value: :odd], 
+              body: [{:four, 4}], keys: [:id], name: nil}) 
+      end)
+    {:atomic, val2} = R.t(fn() ->
+      L.raw_new(%{types: [id: :atom, value: :odd], 
+              body: [{:five, 5}], keys: [:id], name: nil})
+    end)
     R.t(fn() ->
       [t] = Enum.map(val.query, &(T.new(&1, val.types)))
       [tf] = Enum.map(val2.query, &(T.new(&1, val2.types)))

@@ -7,18 +7,25 @@ defmodule InitialD do
   ##
   ## row is Dict(columnname, value)
   ## table is HashSet(row)
+  require Relval
+  require Reltype
+  require Relvar2
 
+  @spec union(Relval.t, Relval.t) :: Relval.t
   def union(left,right) do
-    Set.union(left, right)
+    Relval.union(left, right)
   end
+
+  @spec minus(Relval.t, Relval.t) :: Relval.t
   def minus(left, right) do
-    Set.difference(left, right)
+    Relval.minus(left, right)
   end
+  @spec intersect(Relval.t, Relval.t) :: Relval.t
   def intersect(left, right) do
-    Set.intersection(left, right)
+    Relval.intersect(left, right)
   end
-  def where(left, f) do
-    Stream.filter(left, f) |> Enum.into(HashSet.new)
+  defmacro where(left, binding \\ [], exp) do
+    Relval.where(left, binding, exp)
   end
   def project(left, attributes, bool \\ true) when is_list(attributes) do
     Stream.map(left, fn(x) ->
@@ -118,11 +125,10 @@ defmodule InitialD do
   u = ((s = where(left, wfun)) |> extend_add(sfun_list))
   left = union(minus(left, s), u)
   """
-  def update(left, where: wfun, set: sfun_list) do
-    where(left, wfun) |> extend_add(sfun_list) |> write!(left)
-  end
-  def update(left, right) do
-    minus(right, left) |> write!(left)
+  defmacro update(bind, do: x) do
+    quote do 
+      Relval.update(unquote(bind), do: unquote(x))
+    end
   end
   @doc """
   relational insert 
@@ -140,8 +146,8 @@ defmodule InitialD do
 
   left = where(left, &(not(wfun.(&1))))
   """
-  def delete(left, where: wfun) do
-    where(left, wfun) |> delete!(left)
+  def delete(left) do
+    Relval.delete(left)
   end
   @doc """
   delete d from left

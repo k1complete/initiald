@@ -7,7 +7,6 @@ defmodule RelationalTest do
   require Relvar2
   require Relval
   @moduletag :test_rel
-  @key :_key
 
   setup_all do
     :mnesia.start
@@ -144,16 +143,18 @@ defmodule RelationalTest do
   test "Relational operator union" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = L.new(%{body: [{:atom1, 2}, {:atom3, 6}],
-                 types: [id: :atom, value: :odd],
-                 keys: [:id],
-                 name: :test22
+    relval2 = L.raw_new(%{body: [{:test22, :atom1, :atom1, 2}, 
+                                 {:test22, :atom3, :atom3, 6}],
+                          types: [id: :atom, value: :odd],
+                          keys: [:id],
+                          name: :test22
     })
     assert R.t(fn() ->
       L.union(relvar, relval2) |> L.execute()|> Enum.sort()
-      end) == {:atomic,L.new(%{body: [{:atom1, 2},
-                                      {:atom2, 4},
-                                      {:atom3, 6}],
+      end) == {:atomic,L.raw_new(%{body: 
+                                   [{:test2, :atom1, :atom1, 2},
+                                    {:test2, :atom2, :atom2, 4},
+                                    {:test2, :atom3, :atom3, 6}],
                                name: :test2,
                                keys: [:id],
                              types: [id: :atom, value: :odd]}) 
@@ -162,30 +163,31 @@ defmodule RelationalTest do
   test "Relational operator minus" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = L.new(%{types: [id: :atom, value: :odd],
-                       body: [{:atom1, 2}],
+    relval2 = L.raw_new(%{types: [id: :atom, value: :odd],
+                       body: [{:test22, :atom1, :atom1, 2}],
                       name: :test22,
                       keys: [:id]
     })
     assert R.t(fn() ->
       L.minus(relvar, relval2) |> L.execute()
-      end) == {:atomic, L.new(%{body: [{:atom2, 4}],
-                                types: [id: :atom, value: :odd],
-                                name: :test2,
-                                keys: [:id]
+      end) == {:atomic, L.raw_new(%{body: 
+                                    [{:test2, :atom2, :atom2, 4}],
+                                    types: [id: :atom, value: :odd],
+                                    name: :test2,
+                                    keys: [:id]
                 }) |> L.execute() }
   end
   test "Relational operator intersect" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = L.new(%{types: [id: :atom, value: :odd],
-                      body: [{:atom1, 2}],
-                      name: :test22,
-                      keys: [:id]
+    relval2 = L.raw_new(%{types: [id: :atom, value: :odd],
+                          body: [{:test22, :atom1, :atom1, 2}],
+                          name: :test22,
+                          keys: [:id]
     })
     assert R.t(fn() ->
       L.intersect(relvar, relval2) |> L.execute()
-      end) == {:atomic, L.new(%{body: [atom1: 2],
+      end) == {:atomic, L.raw_new(%{body: [{:test2, :atom1, :atom1, 2}],
                                 types: [id: :atom, value: :odd],
                                 name: :test2,
                                 keys: [:id]
@@ -196,40 +198,45 @@ defmodule RelationalTest do
     relvar = R.to_relvar(:test2)
     assert R.t(fn() ->
       L.where(relvar, [], (value == 4)) |> L.execute()
-    end) == {:atomic,L.new(%{body: [{:atom2, 4}],
-                             types: [id: :atom, value: :odd],
-                             name: :test2,
-                             keys: [:id]
-            }) |> L.execute() }
+    end) == {:atomic,L.raw_new(%{body: [{:test2, :atom2, :atom2, 4}],
+                                 types: [id: :atom, value: :odd],
+                                 name: :test2,
+                                 keys: [:id]
+              }) |> L.execute() }
   end
   test "Relational operator project" do
     create_type()
     relvar = R.to_relvar(:test2)
     assert R.t(fn() ->
       L.project(relvar, [:value]) |> L.execute() |> Enum.sort()
-    end) == {:atomic, L.new(%{body: [{2},{4}],
-                              types: [value: :odd],
-                              name: :test2,
-                              keys: [:value]
-            }) |> L.execute() |> Enum.sort() }
+    end) == {:atomic, L.raw_new(%{body: [{:test2, 2, 2},{:test2, 4, 4}],
+                                  types: [value: :odd],
+                                  name: :test2,
+                                  keys: [:value]
+              }) |> L.execute() |> Enum.sort() }
   end
   test "Relational operator fnjoin" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = L.new(%{body: [{2, :two}, {4, :four}, {6, :six}],
-                      types: [value: :odd, name: :atom],
-                      name: :test22,
-                      keys: [:value, :name]
+    relval2 = L.raw_new(%{body: 
+                          [{:test22, {2, :two}, 2, :two}, 
+                           {:test22, {4, :four},4, :four}, 
+                           {:test22, {6, :six}, 6, :six}],
+                          types: [value: :odd, name: :atom],
+                          name: :test22,
+                          keys: [:value, :name]
     })
 
     assert R.t(fn() ->
       L.join(relvar,  relval2) |> L.execute() |> Enum.sort()
-    end) == {:atomic,L.new(%{body: [{:atom1, 2, :two},
-                                    {:atom2, 4, :four}],
-                             types: [id: :atom, value: :odd, name: :atom],
-                             name: :test2_test22,
-                             keys: [:id, :name]
-            }) |> L.execute() |> Enum.sort() }
+    end) == {:atomic,L.raw_new(%{body: [{:test2_test22, {:atom1, :two}, 
+                                         :atom1, 2, :two},
+                                        {:test2_test22, {:atom2, :four},
+                                         :atom2, 4, :four}],
+                                 types: [id: :atom, value: :odd, name: :atom],
+                                 name: :test2_test22,
+                                 keys: [:id, :name]
+              }) |> L.execute() |> Enum.sort() }
   end
   test "Relational operation rename" do
     create_type()

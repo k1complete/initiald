@@ -3,11 +3,11 @@ defmodule Constraint do
   alias Relvar2, as: R
   alias Relval, as: L
   require Qlc
-
   @relvar_constraint :__relvar_constraint__
   @constraint :__constraint__
   @constraint_fields [name: nil, type: :before, definition: nil]
   Record.defrecord @constraint, @constraint_fields
+  @type t :: record(:__constraint__, name: atom, type: atom, definition: fun)
   @doc """
   initialize constraint type and relvar.
   relvar table :: @constraint 
@@ -36,7 +36,7 @@ defmodule Constraint do
   @doc """
   create new constraint for relvars, by definition.
   """
-  @spec create(String.t, maybe_improper_list(), (... -> any)) :: boolean()
+  @spec create(String.t, maybe_improper_list(), (... -> any)) :: boolean() | no_return() | none()
   def create(constraint, relvars, definition) do
     c = R.to_relvar(@constraint)
     rc = R.to_relvar(@relvar_constraint)
@@ -67,7 +67,7 @@ defmodule Constraint do
   return failed constraint list.
 
   """
-  @spec validate([atom]|R.t) :: :ok
+  @spec validate([atom]|R.t) :: :ok | no_return
   def validate(%R{} = relname) do
     validate([relname.name])
   end
@@ -85,6 +85,7 @@ defmodule Constraint do
           Relnames: relnames])
     case Qlc.e(qc) do
       [] ->
+#        IO.inspect [C: qc]
         :ok
       x ->
         :mnesia.abort(x)
@@ -99,7 +100,6 @@ defmodule Constraint do
 
   if not satisfy constraint, raise transaction abort.
   """
-  @spec foreign_key!(atom, atom, [atom]) :: true | {:foreign_key, any, any, L.t}
   defmacro foreign_key!(pk, fk, keys) do
     quote bind_quoted: [pk: pk, fk: fk, keys: keys] do
       pkvar = R.to_relvar(pk)

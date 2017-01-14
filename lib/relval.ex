@@ -2,9 +2,18 @@ defmodule Relval do
   require Qlc
   require Logger
   require Reltuple
+  require Relval.Assign
   alias Relvar2, as: R
+  @behaviour Access
   defstruct types: Keyword.new(), keys: [], query: nil, name: nil
-  
+#  @type qlc_handle :: :qlc.qlc_handle()
+  @type qlc_handle :: any()
+  @type query :: qlc_handle()
+  @type t :: %__MODULE__{types: Keyword.t,
+                         keys: list(),
+                         query: nil | query() | list() | atom()}
+  @key :_key
+  @relname :_relname
   def make_key_from_keys([key]) do
     key
   end
@@ -17,22 +26,32 @@ defmodule Relval do
   def key_from_keys(key) when is_atom(key) do
     [key]
   end
-  @type query :: :qlc.qlc_handle()
-  @type t :: %__MODULE__{types: Keyword.t,
-                         keys: list(),
-                         query: nil | query}
+#  @type query :: :qlc.qlc_handle()
   @rel :_relname
   @rel :_key
-  def new(%{types: type, body: body, keys: keys, name: name} = p) do 
+  def new(%{types: type, body: body, keys: keys, name: name}) do 
     ki = Keyword.keys(type) |> Enum.with_index()
     query = Enum.map(body, fn(x) ->
       y = Tuple.to_list(x)
-      ky = Enum.map(keys, &(Enum.at(y, ki[&1])))
-      List.to_tuple([name, make_key_from_keys(ky) | y])
+      v = Enum.zip(Keyword.keys(type), y)
+      case R.valid(v, type) do
+        [] -> 
+#          IO.inspect [ y: y, type: type]
+          ky = Enum.map(keys, &(Enum.at(y, ki[&1])))
+          List.to_tuple([name, make_key_from_keys(ky) | y])
+        ret ->
+          m = Enum.map(ret, fn({a, {t, v}}) ->
+                RelType.TypeConstraintError.exception(
+                  [type: t, value: v, attribute: a])
+              end)
+#          IO.inspect [m: m]
+          raise(Relval.ConstraintError, [relname: name,
+                                         constraints: m])
+      end
     end)
     %__MODULE__{types: type, query: query, keys: keys, name: name}
   end
-  def raw_new(%{types: type, body: body, keys: keys, name: name} = p) do
+  def raw_new(%{types: type, body: body, keys: keys, name: name}) do
     %__MODULE__{types: type, query: body, keys: keys, name: name}
   end
   def table(t) do
@@ -52,8 +71,6 @@ defmodule Relval do
   def set_operation(f, left, right) do
     case left.types == right.types  do
       true ->
-        types = [@relname, @key | Keyword.keys(left.types)]
-        rtypes = Enum.with_index([@relname, @key | Keyword.keys(right.types)])
         q = f.(left.query, right.query, left.name)
  #       IO.puts :qlc.info(q)
         %__MODULE__{types: right.types, query: q}
@@ -71,10 +88,8 @@ defmodule Relval do
     end
     |> set_operation(left, right)
   end
-  @spec union(t, t) :: t
+  @spec intersect(t, t) :: t
   def intersect(left, right) do
-    e = left.name
-#    IO.inspect [intersect: left.name]
     fn(lq, rq, name) ->
       Qlc.q("[X || X <- Q1, Y <- Q2, X =:= setelement(1, Y, M)]", 
             [Q1: lq, 
@@ -84,14 +99,14 @@ defmodule Relval do
     end
     |> set_operation(left, right)
   end
-  @spec is_exists(t, tuple, (tuple -> tuple)) :: t
+  @spec is_exists(t, tuple, (tuple -> tuple)) :: query()
   def is_exists(query, e, f \\ fn(x) -> x end) do
     r = Qlc.q("[true || X <- Q, F(X) =:= F(E)]", 
               [Q: query, E: e, F: f], 
               [unique: true])
     r
   end
-  @spec filter(t, (tuple -> bool) ) :: t
+  @spec filter(t, (tuple -> boolean()) ) :: query()
   def filter(query, f) do
     Qlc.q("[X || X <- Q, F(X)]", [Q: query, F: f],
           [unique: true])
@@ -109,7 +124,7 @@ defmodule Relval do
   end
   
   def extract_common_keys(la, ra) do
-    {fkeys, rarest} = Enum.split_with(ra, fn(x) -> Enum.member?(la, x) end)
+    Enum.split_with(ra, fn(x) -> Enum.member?(la, x) end)
   end
 
   def do_natural_join(left, right, pf, pt, pk) do
@@ -188,7 +203,7 @@ defmodule Relval do
           end)
   end
 
-  def do_project(left, exp, bool \\ true) do
+  def do_project(left, exp, _bool \\ true) do
 #    IO.inspect [project: left.types]
     key = Keyword.keys(left.types)
     keys = Enum.with_index(key, 3)
@@ -197,7 +212,6 @@ defmodule Relval do
         |> Enum.join(",") 
         |> to_char_list()
     v = :erl_eval.add_binding(:Q, left.query, :erl_eval.new_bindings())
-    k = make_key_from_keys(key)
 #    IO.inspect [project: k, key: key]
     q = if length(exp) == 1 do
       '[ { element(1, X), #{s}, #{s} } || X <- Q ].'
@@ -219,7 +233,7 @@ defmodule Relval do
   end
   def trans(exp, keys) do
     Macro.prewalk(exp, [], 
-                  fn ({:"==", m, [{:"{}", m2, arg}, s]} = z, acc) ->
+                  fn ({:"==", m, [{:"{}", _m2, arg}, s]} = z, acc) ->
 #                    IO.inspect [trans: z, arg: arg, keys: keys]
                     if (arg == keys) do
                       {{:"==", m, [@key, s]}, acc}
@@ -253,7 +267,7 @@ defmodule Relval do
                                       3,
                                       __MODULE__.table(left)}
                                  end
-    {exp2, acc} = trans(exp, ckey)
+    {exp2, _acc} = trans(exp, ckey)
 #    IO.puts Macro.to_string(exp2)
     r = Macro.prewalk(exp2, fn(x) ->
       s = case x do
@@ -264,7 +278,7 @@ defmodule Relval do
                 case Keyword.fetch(key, v) do
                   {:ok, i} ->
 #                    IO.inspect [key: key, v: v, exp2: exp2, offset: offset]
-                    s = {:element, m, [i + offset, {:X, m, nil}]}
+                    {:element, m, [i + offset, {:X, m, nil}]}
                   :error ->
                     case Keyword.fetch(binding, v) do
                       {:ok, m} ->
@@ -293,15 +307,15 @@ defmodule Relval do
   def fmt(ast, x) do
 #    IO.inspect [fmt: ast, x: x]
     case ast do
-      {:"==", m, [a, b]} ->
+      {:"==", _m, [a, b]} ->
         r = Macro.to_string(a, &fmt/2) <> " =:= " <> Macro.to_string(b, &fmt/2)
         r
-      {:"!=", m, [a, b]} ->
+      {:"!=", _m, [a, b]} ->
         r = Macro.to_string(a, &fmt/2) <> " =/= " <> Macro.to_string(b, &fmt/2)
         r
-      {:and, m, [a, b]} ->
+      {:and, _m, [a, b]} ->
         Macro.to_string(a, &fmt/2) <> ", " <> Macro.to_string(b, &fmt/2)
-      {:or, m, [a, b]} ->
+      {:or, _m, [a, b]} ->
         Macro.to_string(a, &fmt/2) <> " orelse " <> Macro.to_string(b, &fmt/2)
       x when is_binary(x) ->
        "<<\"#{x}\">>"
@@ -366,7 +380,7 @@ defmodule Relval do
     q = Qlc.q("[list_to_tuple(tuple_to_list(R)++tuple_to_list(F(R))) || R <- Right]",
               [F: 
                fn(x) -> 
-                 keys = Keyword.keys(right.types)
+#                 _keys = Keyword.keys(right.types)
 #                 IO.inspect [XXX: x, name: elem(x, 0), key: keys,
 #                             types: right.types]
                  summary_fun.(Relval.matching(
@@ -390,11 +404,11 @@ defmodule Relval do
              old
   """
   def vtoa(ast, types, v) do
-    IO.inspect [ast: ast, types: types]
-    Macro.prewalk(ast, fn({x, m, nil}) when is_atom(x) ->
+#    IO.inspect [ast: ast, types: types]
+    Macro.prewalk(ast, fn({x, _m, nil}) when is_atom(x) ->
       case Keyword.fetch(types, x) do
-        {:ok, type} -> 
-          IO.inspect [hit: x, v: v[x], v: v]
+        {:ok, _type} -> 
+#          IO.inspect [hit: x, v: v[x], v: v]
           quote bind_quoted: [v: v, x: x] do
             v[x]
           end
@@ -407,19 +421,19 @@ defmodule Relval do
     end)
   end
   def do_update(relval, exp, binding) do
-    IO.inspect [do_update: exp]
-    type = relval.types
+#    IO.inspect [do_update: exp]
+#    _type = relval.types
     case Keyword.keyword?(exp) do
       true -> 
         Enum.map(exp, fn({k, v}) ->
           case Keyword.fetch(relval.types, k) do
-            {:ok, type} ->
+            {:ok, _type} ->
               quote bind_quoted: [x: k, ex: v, types: relval.types, 
                                   v: relval, old: binding.old,
                                   new: binding.new] do 
-                IO.inspect [new: new, x: x, ex: ex]
+#                IO.inspect [new: new, x: x, ex: ex]
                 {s, t} = Reltuple.get_and_update(new, x, fn(n) -> 
-                  IO.inspect [get_and_update: x, n: ex]
+#                  IO.inspect [get_and_update: x, n: ex]
                   {n, ex} 
                 end)
                 {s, t}
@@ -432,75 +446,102 @@ defmodule Relval do
         exp
     end
   end
+  defmodule Util do
+    def prepare_new(relval, exp, bind) do
+      s = :qlc.fold(fn(t, acc) -> 
+        old = Reltuple.raw_new(t, relval.types)
+        new = old
+        {r, o} = Code.eval_quoted(exp, [new: new, old: old] ++ bind)
+        new = Enum.reduce(r, old, fn({k, v}, a) ->
+          {old, new_val} = Reltuple.get_and_update(a, k, fn(x) -> 
+            {a[k], v} 
+          end)
+          #IO.inspect [reduce: new_val]
+          new_val
+        end)
+        acc = [new|acc]
+#        IO.inspect [newacc: acc]
+        acc
+        #                    :mnesia.write(new.tuple)
+      end, [], relval.query)
+    end
+  end
   defmacro update(bind, do: x) do
-    IO.inspect Macro.expand(x, __ENV__) 
+#    IO.inspect [update: Macro.expand(x, __ENV__) ]
     ret = Enum.reduce(x, [], fn({:->, w, [[relval], exp]}, a) -> 
       s = Macro.escape(exp)
-      IO.inspect [s: s, exp: exp]
+#      IO.inspect [s: s, exp: exp]
       m = quote bind_quoted: [w: w, relval: relval, exp: s, bind: bind] do 
         require Relval
-        query = Relval.table(relval)
-#        IO.inspect [exp0: exp]
-        s = :qlc.fold(fn(t, a) -> 
-          old = Reltuple.raw_new(t, relval.types)
-          new = old
-#          exp = Relval.do_update(relval, exp, [new: new, old: old])
-          IO.inspect [m: exp]
-          IO.puts Macro.to_string(exp)                        
-#          {r, _} = Code.eval_quoted(exp,[new: new, old: old]) 
-#          {r, _} = Code.eval_quoted(exp,[])
-#          IO.inspect [write_candidate: r]
-          {r, o} = Code.eval_quoted(exp, [new: new, old: old] ++ bind)
-#          IO.inspect [r: r, o: o]
-          new = Enum.reduce(r, old, fn({k, v}, a) ->
-            {old, new_val} = Reltuple.get_and_update(a, k, fn(x) -> 
-              {a[k], v} 
-            end)
-            #IO.inspect [reduce: new_val]
-            new_val
-          end)
-          new
-          #                    :mnesia.write(new.tuple)
-        end, [], relval.query)
- #       IO.inspect [s: s]
+        #        IO.inspect [exp0: exp]
+#        IO.inspect [s_exp: exp]
+        s = Relval.Util.prepare_new(relval, exp, bind)
+#       IO.inspect [s: s]
+       s
       end
+#      IO.puts Macro.to_string(m)
+#      IO.inspect [m: Macro.to_string(m), a: a]
       [m|a]
       (x, a) -> 
         quote do
-        IO.inspect [other: unquote(x)]
+#        IO.inspect [other: unquote(x)]
         end
       [x|a]
     end)
+#    IO.puts "ret: "
+#    IO.puts Macro.to_string(ret)
     a = Enum.reverse(ret)
     quote bind_quoted: [a: a] do
       try do
-        Enum.map(a, fn(x) -> 
-          tuple = x.tuple
-          table = elem(tuple, 0)
-          relvar = R.to_relvar(table)
-          old_key = elem(tuple, 1)
-          value = Tuple.delete_at(tuple, 0) |> Tuple.delete_at(0)
-          rv = Reltuple.new(value, relvar.types) 
-          new_key = Enum.map(relvar.keys, fn(x) ->
-            rv[x]
-          end) |> List.to_tuple()
-          case old_key == new_key do
-            true ->
-              :mnesia.write(tuple)
-            false ->
-              :mnesia.delete({table, old_key})
-              new_tuple = :erlang.setelement(2, tuple, new_key)
-              IO.inspect [new: new_tuple, old: tuple]
-              :mnesia.write(new_tuple)
-          end
-          IO.inspect [x: x]
-          
+        Enum.map(a, fn(y) -> 
+          Enum.map(y, fn(x) ->
+            tuple = x.tuple
+            table = elem(tuple, 0)
+            relvar = R.to_relvar(table)
+            old_key = elem(tuple, 1)
+            value = Tuple.delete_at(tuple, 0) |> Tuple.delete_at(0)
+            rv = Reltuple.new(value, relvar.types) 
+            new_key = Enum.map(relvar.keys, fn(x) ->
+              rv[x]
+            end) |> List.to_tuple()
+            case old_key == new_key do
+              true ->
+                :mnesia.write(tuple)
+              false ->
+                :mnesia.delete({table, old_key})
+                new_tuple = :erlang.setelement(2, tuple, new_key)
+                #              IO.inspect [new: new_tuple, old: tuple]
+                :mnesia.write(new_tuple)
+            end
+            #          IO.inspect [x: x]
+          end)
         end)
       catch
         e,f ->
-          IO.inspect [e: e, f: f]
-          :mnesia.abort({:attribute_type_unmatch, f})
+          IO.inspect [e: e, f: f, a: a]
+#          raise(e, f)
+          :mnesia.abort(f)
       end
     end
+  end
+  defmacro assign(bind, block) do
+    quote do
+      Relval.Assign.assign(unquote(bind), unquote(block))
+    end
+  end
+  def fetch(t, key) when is_tuple(key) do
+    sels = Tuple.to_list(key)
+    atts = Keyword.keys(t.types)
+    case sels -- atts do
+      [] -> {:ok, project(t, Tuple.to_list(key))}
+      _x -> :error
+    end
+  end
+
+end
+defmodule Relval.ConstraintError do
+  defexception [relname: nil, constraints: []]
+  def message(exception) do
+    "relname #{inspect(exception.relname)}, constraints: #{inspect(exception.constraints)}"
   end
 end

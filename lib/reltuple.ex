@@ -22,6 +22,7 @@ defmodule Reltuple do
       types: types}
   end    
   def fetch(%__MODULE__{tuple_index: i, tuple: t}, key) do
+#    IO.inspect [i: i, tuple: t, key: key]
     {:ok, elem(t, i[key])}
   end
   def get(%__MODULE__{tuple_index: i, tuple: t}, key, default) do
@@ -73,6 +74,7 @@ defmodule Reltuple do
     |> List.to_tuple 
     |> __MODULE__.new(Keyword.take(v.types, keys))
   end
+  @spec equal?(t, t) :: boolean()
   def equal?(left, right) do
     Map.equal?(left.tuple_index, right.tuple_index) &&
     left.tuple === right.tuple 

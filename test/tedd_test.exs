@@ -135,13 +135,14 @@ defmodule TeddTest do
                        }
       ) |> L.execute() |> Enum.sort()
     end)
-    assert r == {:atomic, L.new(%{types: [sno: :sno, pccount: :int, qmax: :int],
+    assert r == {:atomic, L.raw_new(%{types: 
+                                      [sno: :sno, pccount: :int, qmax: :int],
                                   keys: [:sno],
                                   name: :s,
-                                  body: [{"s1", 6, 400},
-                                         {"s2", 2, 400},
-                                         {"s3", 1, 200},
-                                         {"s5", 0, nil}]})
+                                  body: [{:s, "s1", "s1", 6, 400},
+                                         {:s, "s2", "s2", 2, 400},
+                                         {:s, "s3", "s3", 1, 200},
+                                         {:s, "s5", "s5", 0, nil}]})
                  |> L.execute() |> Enum.sort()
                 }
   end

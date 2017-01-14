@@ -113,11 +113,13 @@ defmodule ConstraintTest do
       Constraint.validate([:test2])
       L.project(R.to_relvar(:test2), [:id, :value]) |> L.execute()
     end)
-    assert {:atomic, 
-            L.new(%{body: [{:id2, 6}],
-                    keys: [:id, :value],
-                    name: :test2,
-                    types: [id: :atom, value: :odd]}) |> L.execute()} == t
+    assert R.t(fn() ->
+               L.new(%{body: [{:id2, 6}],
+                       keys: [:id, :value],
+                       name: :test2,
+                       types: [id: :atom, value: :odd]}) |> L.execute()
+             end)
+           == t
     t = R.t(fn() ->
       R.to_relvar(:test2) 
       |> R.write({:id2, 4})

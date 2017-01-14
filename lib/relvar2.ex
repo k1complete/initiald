@@ -2,7 +2,10 @@ defmodule Relvar2 do
   require Logger
   require Qlc
 #  alias Relval2, as: L
+  require Reltuple
   alias Reltuple, as: T
+  @behaviour Access
+
   @key :_key
   @relname :_relname
   defstruct name: nil, types: nil, 
@@ -50,7 +53,8 @@ defmodule Relvar2 do
   @type keys :: [tuple]
   @type attributes :: [tuple]
   @type relval :: any
-  @type qlc_handle :: :qlc.qlc_handle()
+#  @type qlc_handle :: :qlc.qlc_handle()
+  @type qlc_handle :: any()
   def t(f) do
     :mnesia.transaction(f)
   end
@@ -130,20 +134,25 @@ defmodule Relvar2 do
   
   output: invalid {attribute, {type, value}} list.
   """
-  @spec valid(list, [{atom, any}]) :: [any()] | {:error,atom(),:bad_object | {:bad_object,atom() | [atom() | [any()] | char()]} | {:bad_term,atom() | [atom() | [any()] | char()]} | {:premature_eof,atom() | [atom() | [any()] | char()]} | {:file_error,atom() | [atom() | [any()] | char()],atom()}}
+#  @spec valid(list, [{atom, any}]) :: [any()] | {:error,atom(),:bad_object | {:bad_object,atom() | [atom() | [any()] | char()]} | {:bad_term,atom() | [atom() | [any()] | char()]} | {:premature_eof,atom() | [atom() | [any()] | char()]} | {:file_error,atom() | [atom() | [any()] | char()],atom()}}
+  @spec valid(list, Keyword.t) :: [any()] | no_return()
   def valid(v, types) when is_list(v) and is_list(types) do
 #    IO.inspect [v: v, types: types]
     qc = Qlc.q("""
           [{Name, {TypeName, V}} || 
-             {Name, Value} <- AttributeSet,
-             {AName, TName} <- Type,
-             {_,TypeName, Definition, _} <- RelType,
-             TName =:= TypeName,
-             Name =:= AName,
-             Definition(V = element(2,lists:keyfind(Name, 1, AttributeSet))) =:= false]
-    """, [AttributeSet: v,
-          Type: types, RelType: Reltype.table])
-    :qlc.e(qc) 
+          {Name, Value} <- AttributeSet,
+          {AName, TName} <- Type,
+          {_,TypeName, Definition, _} <- RelType,
+          TName =:= TypeName,
+          Name =:= AName,
+          Definition(V = element(2,lists:keyfind(Name, 1, AttributeSet))) =:= false]
+          """, [AttributeSet: v,
+                Type: types, RelType: Reltype.table])
+#    IO.puts :qlc.info(qc)
+#    IO.inspect [Type: Qlc.e(Qlc.q("[X || X <- Q]", [Q: Reltype.table]))]
+    ret = :qlc.e(qc)
+#    IO.inspect [typeret: ret]
+    ret
   end
   @spec to_tuple(atom, {map, map}, list) :: tuple
   @doc """
@@ -182,7 +191,7 @@ defmodule Relvar2 do
   translate: {table_name, %{key1: aaa}, value1, value2}
   """
   @type reason :: tuple
-  @spec write(atom|__MODULE__.t, tuple) :: :ok 
+  @spec write(atom|__MODULE__.t, tuple) :: :ok | none() | no_return()
   def write(relvar = %__MODULE__{}, t) do
     types = relvar.types
     name = relvar.name
@@ -215,60 +224,63 @@ defmodule Relvar2 do
     [@key|attributes] = relvar.attributes
     :erlang.list_to_tuple(Enum.map(attributes, fn(e) -> Map.get(new, e) end))
   end
-  @spec update_or_replace(T.t, T.t, %__MODULE__{}) :: :ok
-  def update_or_replace(new, old, relvar) do
+  @spec update_or_replace(T.t, T.t, __MODULE__.t) :: :ok | none() | no_return()
+  def update_or_replace(%T{} = new, %T{} = old, relvar) do
     keys = relvar.keys
 #    IO.inspect [update_or_replace: new, old: old, relvar: relvar]
 #    new = Map.merge(old, new);
-    new_keys = Reltuple.take(new, keys)
-    old_keys = Reltuple.take(old, keys)
-#    IO.inspect [u_o_r_old_keys: old_keys]
-#    IO.inspect [u_o_r_new_keys: new_keys]
-#    new_keys = List.to_tuple(Enum.map(keys, &(new_keys[&1])))
-#    old_keys = List.to_tuple(Enum.map(keys, &(old_keys[&1])))
-    if (!Reltuple.equal?(new_keys, old_keys)) do
-#      IO.inspect [new_keys: new_keys, old_keys: old_keys]
+    new_keys = T.take(new, keys)
+    old_keys = T.take(old, keys)
+    a = if (!T.equal?(new_keys, old_keys)) do
       delete(relvar, old.tuple)
-#      IO.inspect [delete_done: old_keys]
     end
+    case a do
+      :ok -> 
 #    IO.inspect([update_or_replace: t])
-    write(relvar, new.tuple)
+        write(relvar, new.tuple)
+      _ ->
+        write(relvar, new.tuple)
+    end
+    :ok
   end
   def constraint(new, old, relvar) do
     case Enum.all?(relvar.constraints, &(&1.(new, old, relvar))) do
       true -> new
-      false -> raise(RuntimeError, "constraint violation");
+      _ -> raise(RuntimeError, "constraint violation")
     end
   end
-  @spec update(L.t,  %__MODULE__{}) :: list
+  @spec update(Relval.t,  %__MODULE__{}) :: list | no_return()
   def update(left, %__MODULE__{} = relvar) when is_map(left) do
     Enum.map(left, fn(t) -> 
       write(relvar, t) 
     end)
   end
-  @spec update(relval, (tuple -> tuple), __MODULE__.t) :: no_return
+  @spec update(relval, (tuple -> tuple), __MODULE__.t) :: list | no_return
   def update(relval, updatefn, %__MODULE__{} = relvar) do
 #    IO.inspect [update: relval]
-    Enum.map(relval.body, fn(x) -> 
-#      IO.inspect [relval: x]
-      old_map = T.new(x, relval.types)
-#      IO.inspect [oldmap: old_map]
-      updatefn.(old_map) |>
-#      constraint(old_map, relvar)|>
-#      merge_map_to_tuple(old, relvar) |>
-      update_or_replace(old_map, relvar)
-    end)
+    try do
+      Enum.map(relval.body, fn(x) -> 
+        #      IO.inspect [relval: x]
+        old_map = T.new(x, relval.types)
+        #      IO.inspect [oldmap: old_map]
+        updatefn.(old_map) |>
+          #      constraint(old_map, relvar)|>
+          #      merge_map_to_tuple(old, relvar) |>
+          update_or_replace(old_map, relvar)
+      end)
+    catch
+     {e, r} -> raise(e, r)
+    end
   end
-  def delete(left, %__MODULE__{} = relvar) when is_map(left) do
-    Enum.map(left, fn(t) -> delete(relvar, t) end)
-  end
-  @spec delete(__MODULE__.t, keys) :: :ok | :no_return
+  @spec delete(__MODULE__.t, keys) :: :ok | no_return
   def delete(relvar, t) do
 #    IO.inspect [delete_t: t]
     keyitem = get_key_from_tuple(t, relvar)
 #    IO.inspect [delete_t_keyitem: keyitem]
     :mnesia.delete({relvar.name, keyitem})
-     :ok
+  end
+  def fetch(t, key) when is_tuple(key) do
+    Relval.fetch(t, key)
   end
   
 end
@@ -324,6 +336,7 @@ defimpl Enumerable, for: Relvar2 do
     {:done, ret}
   end
 end
+
 defimpl Collectable, for: Relvar2 do
   alias Relvar2, as: R
   def into(v) do

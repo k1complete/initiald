@@ -1,15 +1,20 @@
 defmodule RelationalTest3 do
   use ExUnit.Case, async: false
   require Qlc
+  require Relvar2
+  require Relval2
+  require Reltype
   alias Relvar2, as: R
   alias Relval2, as: L
-  require Relvar2
-  require Reltype
   @moduletag :test3
 
   setup_all do
     :mnesia.start
     Reltype.init
+    Constraint.init
+    on_exit fn() ->
+      Constraint.destroy
+    end
     :ok
   end
   setup do
@@ -33,36 +38,36 @@ defmodule RelationalTest3 do
     :ok
   end
   def create_type do
-    keys = [:id]
-    types = [id: :atom, value: :odd]
+    keys = [:id, :id2]
+    types = [id: :atom, value: :odd, id2: :atom]
     on_exit fn ->
       R.drop(:test2)
     end
     assert(struct(R, %{:keys => keys, 
                        :name => :test2,
                        :types => types,
-                       :attributes => [:key, :id, :value]
+                       :attributes => [:key, :id, :value, :id2]
         })
-           == R.create(:test2, [:id], [id: :atom, value: :odd]))
+           == R.create(:test2, [:id, :id2], [id: :atom, value: :odd, id2: :atom]))
     assert({:atomic, :ok} == 
       R.t(fn() ->
-        R.write(:test2, {:atom1, 2})
+        R.write(:test2, {:atom1, 2, :a1})
       end))
     assert({:atomic, :ok} == 
       R.t(fn() ->
-        R.write(:test2, {:atom2, 4})
+        R.write(:test2, {:atom2, 4, :a2})
       end))
     assert({:aborted, 
             {:typecheck_error, :test2, 
              %{value: {:odd, 1}, id: {:atom, 1}}}} == 
       R.t(fn() ->
-        R.write(:test2, {1, 1})
+        R.write(:test2, {1, 1, :a3})
       end))
     assert({:aborted, 
             {:typecheck_error, :test2, 
              %{value: {:odd, 31}}}} == 
       R.t(fn() ->
-        R.write(:test2, {:atom3, 31})
+        R.write(:test2, {:atom3, 31, :a4})
       end))
   end
   test "create_type" do
@@ -71,9 +76,9 @@ defmodule RelationalTest3 do
   test "read_table" do
     create_type()
     r = R.t(fn() ->
-      :mnesia.read({:test2, :atom2})
+      :mnesia.read({:test2, {:atom2, :a2}})
     end)
-    assert(r == {:atomic, [{:test2, :atom2, :atom2, 4}]})
+    assert(r == {:atomic, [{:test2, {:atom2, :a2}, :atom2, 4, :a2}]})
     r = R.t(fn() ->
       :mnesia.read({:test2, %{:id => :atom3}})
     end)
@@ -89,9 +94,9 @@ defmodule RelationalTest3 do
     create_type()
     relvar = R.to_relvar(:test2)
 #    relvale = {:atom1, 2}
-    assert R.t(fn() -> Enum.member?(relvar, {:atom1, 2}) end)  == {
+    assert R.t(fn() -> Enum.member?(relvar, {:atom1, 2, :a1}) end)  == {
       :atomic, true}
-    relval = {:atom1, 1}
+    relval = {:atom1, 1, :a1}
     assert R.t(fn() -> Enum.member?(relvar, relval) end)  == {
       :atomic, false}
   end
@@ -115,8 +120,8 @@ defmodule RelationalTest3 do
     assert catch_error(Enum.count(%R{name: error_relvar})) == 
       %ArgumentError{message: "not found relational variable: #{error_relvar}"}
     assert R.t(fn() ->
-      Enum.into([{:a, 4},
-                 {:b, 2}], relvar)
+      Enum.into([{:a, 4, :a1},
+                 {:b, 2, :a2}], relvar)
     end) == {:atomic, relvar}
     assert Enum.count(relvar) == 4
     
@@ -125,24 +130,24 @@ defmodule RelationalTest3 do
     create_type()
     relvar = R.to_relvar(:test2)
     assert R.t(fn() ->
-      Enum.into([a: 3, b: 2], relvar)
+      Enum.into([{:a, 3, :a}, {:b, 2, :b}], relvar)
     end) == {:aborted, 
              {:typecheck_error, :test2,
               %{value: {:odd,  3}}}}
     assert R.t(fn() ->
-      Enum.into([a: 4, b: 2], relvar)
+      Enum.into([{:a, 4, :a}, {:b, 2, :b}], relvar)
     end) == {:atomic, relvar}
     {c, r} =  R.t(fn() ->
-      Enum.map(relvar, fn({k, v}) ->
+      Enum.map(relvar, fn({k, v, k2}) ->
 #        IO.inspect [map: {k, v}]
-        {k, v}
+        {k, v, k2}
       end)
     end)
     assert c == :atomic
-    assert Enum.sort(r) == Enum.sort([atom1: 2,
-                                      atom2: 4,
-                                      a: 4,
-                                      b: 2])
+    assert Enum.sort(r) == Enum.sort([{:atom1, 2, :a1},
+                                      {:atom2, 4, :a2},
+                                      {:a, 4, :a},
+                                      {:b, 2, :b}])
   end
   test "Collectable relval" do
 #    IO.inspect "aaa"
@@ -156,32 +161,32 @@ defmodule RelationalTest3 do
   test "Relational operator union" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = %L{body: MapSet.new([{:atom1, 2},
-                                   {:atom3, 6}]),
-                 types: [id: :atom, value: :odd]}
+    relval2 = %L{body: MapSet.new([{:atom1, 2, :a1},
+                                   {:atom3, 6, :a3}]),
+                 types: [id: :atom, value: :odd, id2: :atom ]}
     assert R.t(fn() ->
       L.union(relvar, relval2)
       end) == {:atomic,
-               %L{body: MapSet.new([{:atom1, 2},
-                                    {:atom2, 4},
-                                    {:atom3, 6}]),
-                  types: [id: :atom, value: :odd]}}
+               %L{body: MapSet.new([{:atom1, 2, :a1},
+                                    {:atom2, 4, :a2},
+                                    {:atom3, 6, :a3}]),
+                  types: [id: :atom, value: :odd, id2: :atom]}}
   end
   test "Relational operator minus" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = %L{types: [id: :atom, value: :odd],
-                 body: MapSet.new([{:atom1, 2}])}
+    relval2 = %L{types: [id: :atom, value: :odd, id2: :atom],
+                 body: MapSet.new([{:atom1, 2, :a1}])}
     assert R.t(fn() ->
       L.minus(relvar, relval2)
-    end) == {:atomic, %L{body: MapSet.new([{:atom2, 4}]),
-                         types: [id: :atom, value: :odd]}}
+    end) == {:atomic, %L{body: MapSet.new([{:atom2, 4, :a2}]),
+                         types: [id: :atom, value: :odd, id2: :atom]}}
   end
   test "Relational operator intersect" do
     create_type()
     relvar = R.to_relvar(:test2)
-    relval2 = %L{body: MapSet.new([{:atom1, 2}]),
-                 types: [id: :atom, value: :odd]
+    relval2 = %L{body: MapSet.new([{:atom1, 2, :a1}]),
+                 types: [id: :atom, value: :odd, id2: :atom]
                 }
     assert R.t(fn() ->
       L.intersect(relvar, relval2)
@@ -198,8 +203,8 @@ defmodule RelationalTest3 do
           _ -> false
         end
       end)
-    end) == {:atomic,%L{body: MapSet.new([{:atom2, 4}]),
-                        types: [id: :atom, value: :odd]}}
+    end) == {:atomic,%L{body: MapSet.new([{:atom2, 4, :a2}]),
+                        types: [id: :atom, value: :odd, id2: :atom]}}
   end
   test "Relational operator project" do
     create_type()
@@ -210,8 +215,8 @@ defmodule RelationalTest3 do
                         types: [value: :odd]}}
     assert R.t(fn() ->
       L.project(relvar, [:value], false)
-    end) == {:atomic,%L{body: MapSet.new([{:atom1},{:atom2}]),
-                        types: [id: :atom]}}
+    end) == {:atomic,%L{body: MapSet.new([{:atom1, :a1},{:atom2, :a2}]),
+                        types: [id: :atom, id2: :atom]}}
 
   end
   test "Relational operator project relval" do
@@ -236,24 +241,24 @@ defmodule RelationalTest3 do
                  types: [value: :odd, name: :atom]}
     assert R.t(fn() ->
       L.fnjoin(relvar,  relval2)
-    end) == {:atomic,%L{body: MapSet.new([{:atom1, 2, :two},
-                               {:atom2, 4, :four}]),
-                        types: [id: :atom, value: :odd, name: :atom]}}
+    end) == {:atomic,%L{body: MapSet.new([{:atom1, 2, :a1, :two},
+                               {:atom2, 4, :a2, :four}]),
+                        types: [id: :atom, value: :odd, id2: :atom, name: :atom]}}
   end
   test "Relational operation rename" do
     create_type()
     relvar = R.to_relvar(:test2)
     assert {:atomic, 
-            %Relvar2{attributes: [:key, :id, :value], constraints: nil,
-             keys: [:id2], name: :test2, types: [id2: :atom, value: :odd]}}
-      == R.t(fn() -> L.rename(relvar, :id, :id2) end)
+            %Relvar2{attributes: [:key, :id3, :value, :id2], constraints: nil,
+             keys: [:id3, :id2], name: :test2, types: [id3: :atom, value: :odd, id2: :atom]}}
+      == R.t(fn() -> L.rename(relvar, :id, :id3) end)
     assert(
       {:atomic, 
-       %Relvar2{attributes: [:key, :id, :value], constraints: nil,
-                keys: [:id2], name: :test2, 
-                types: [id2: :atom, value2: :odd]}} ==
+       %Relvar2{attributes: [:key, :id3, :value2, :id2], constraints: nil,
+                keys: [:id3, :id2], name: :test2, 
+                types: [id3: :atom, value2: :odd, id2: :atom]}} ==
       R.t(fn() -> 
-        L.rename(relvar, :id, :id2) |>
+        L.rename(relvar, :id, :id3) |>
           L.rename(:value, :value2)
       end))
   end
@@ -261,9 +266,9 @@ defmodule RelationalTest3 do
     create_type()
     relvar = R.to_relvar(:test2)
     assert {:atomic, 
-            %L{body: MapSet.new([{:atom1, 2, :atom1_1},
-                                 {:atom2, 4, :atom2_1}]),
-               types: [id: :atom, value: :odd, id_sub: :atom]}
+            %L{body: MapSet.new([{:atom1, 2, :a1, :atom1_1},
+                                 {:atom2, 4, :a2, :atom2_1}]),
+               types: [id: :atom, value: :odd, id2: :atom, id_sub: :atom]}
               } ==
       R.t(fn() -> 
         L.extend(relvar, :id_sub, :atom, fn(t) -> 
@@ -291,11 +296,12 @@ defmodule RelationalTest3 do
 #            R.t(fn() -> R.sel!(:odd, "a") === 2 end)
 
   end
+  @tag :ttt
   test "update" do
     create_type()
     relvar = R.to_relvar(:test2)
-    ret = %L{body: MapSet.new([four: 4]),
-            types: [id: :atom, value: :odd]}
+    ret = %L{body: MapSet.new([{:four, 4, :a2}]),
+            types: [id: :atom, value: :odd, id2: :atom]}
     assert {:atomic, ret} == 
       R.t(fn() -> 
         L.where(relvar, &(&1[:value] == 4)) |> R.update(
@@ -305,14 +311,17 @@ defmodule RelationalTest3 do
                    IO.inspect [new: m]
                    m
                  end, relvar)
-        L.where(relvar,&(&1[:value]==4))
+        IO.inspect [relvar: relvar]
+        i = L.where(relvar,&(&1[:value]==4))
+        IO.inspect [relvar2: i]
+        i
       end)
   end
   test "delete" do
     create_type()
     relvar = R.to_relvar(:test2)
     ret = %L{body: MapSet.new(),
-            types: [id: :atom, value: :odd]}
+            types: [id: :atom, value: :odd, id2: :atom]}
     assert {:atomic, ret} == 
       R.t(fn() -> 
         L.where(relvar, &(&1[:value] == 4)) |> R.delete(relvar)
@@ -334,14 +343,77 @@ defmodule RelationalTest3 do
     a = R.t(fn() -> 
       L.njoin(relvar, m)
     end)
-    assert a == {:atomic, [{:atom2, 4, 4, :four},
-                           {:atom1, 2, 2, :two}]}
+    assert a == {:atomic, %L{body: MapSet.new([{:atom2, 4, :a2, 4, :four},
+                                               {:atom1, 2, :a1, 2, :two}]),
+                             types: [id: :atom, value: :odd, id2: :atom, mark: :atom]}}
 #    IO.inspect [a: a]
     assert [:a, :b, :e] == 
       L.delete_elements_from_tuple(0,[2,3], 
                                    {:a, :b, :c, :d, :e})
   end
-  @tag :test4
+  @tag :table
+  test "table_val" do
+    m = L.new(types: [value: :odd, mark: :atom],
+              body: MapSet.new([{4, :four},
+                                {2, :two}]))
+    a = L.table(m)
+    q = Qlc.q("[X || X <- M]", [M: a])
+    r = Qlc.e(q)
+    IO.inspect [r: r]
+  end
+  test "njoin/2_val" do
+    create_type()
+    m = L.new(types: [value: :odd, mark: :atom],
+              body: MapSet.new([{4, :four},
+                                {2, :two}]))
+              
+    relvar = R.to_relvar(:test2)
+    a = R.t(fn() -> 
+      L.njoin(relvar, m) 
+    end)
+    assert a == {:atomic, %L{body: MapSet.new([{:atom2, 4, :a2, :four},
+                                               {:atom1, 2, :a1, :two}]),
+                             types: [id: :atom, value: :odd, id2: :atom, mark: :atom]}}
+#    IO.inspect [a: a]
+    assert [:a, :b, :e] == 
+      L.delete_elements_from_tuple(0,[2,3], 
+                                   {:a, :b, :c, :d, :e})
+  end
+  test "njoin/2_val_where" do
+    create_type()
+    m = L.new(types: [value: :odd, mark: :atom],
+              body: MapSet.new([{4, :four},
+                                {2, :two}]))
+              
+    relvar = R.to_relvar(:test2)
+    a = R.t(fn() -> 
+      L.njoin(relvar, m) |> L.where(fn(v) -> v[:mark] == :four end)
+    end)
+    assert a == {:atomic, %L{body: MapSet.new([{:atom2, 4, :a2, :four}]),
+                             types: [id: :atom, value: :odd, id2: :atom, mark: :atom]}}
+#    IO.inspect [a: a]
+    assert [:a, :b, :e] == 
+      L.delete_elements_from_tuple(0,[2,3], 
+                                   {:a, :b, :c, :d, :e})
+  end
+  test "njoin/2_val_var" do
+    create_type()
+    m = L.new(types: [value: :odd, mark: :atom],
+              body: MapSet.new([{4, :four},
+                                {2, :two}]))
+              
+    relvar = R.to_relvar(:test2)
+    a = R.t(fn() -> 
+      L.njoin(m, relvar)
+    end)
+    assert a == {:atomic, %L{body: MapSet.new([{4, :four, :atom2, :a2},
+                                               {2, :two, :atom1, :a1}]),
+                             types: [value: :odd, mark: :atom, id: :atom, id2: :atom]}}
+#    IO.inspect [a: a]
+    assert [:a, :b, :e] == 
+      L.delete_elements_from_tuple(0,[2,3], 
+                                   {:a, :b, :c, :d, :e})
+  end
   test "relval.table/1" do
     create_type()
     relval = %L{body: MapSet.new([{:a, 4}, {:b, 6}, {:c, 8}]),
