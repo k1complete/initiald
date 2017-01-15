@@ -1,5 +1,4 @@
 defmodule Relval.Assign.Util do
-  @key :_key
   def old_and_new_tuples(rel, exp, bind, result) do
 #    IO.inspect [old_and_new_tuples: bind, exp: exp]
 #    old = Reltuple.raw_new(nr, rel.types)
@@ -7,7 +6,7 @@ defmodule Relval.Assign.Util do
 #      IO.inspect [fold: t, exp: exp, rel: rel, type: rel.types]
       old = Reltuple.raw_new(t, rel.types)
 #      IO.inspect [old: old, bind: bind, exp: exp]
-      {r, o} = Code.eval_quoted(exp, [old: old] ++ bind)
+      {r, _o} = Code.eval_quoted(exp, [old: old] ++ bind)
 #      IO.inspect [r: r]
       new_candidate = Enum.reduce(r, old, fn({k, nv}, a) ->
         {old_att, new_val} = Reltuple.get_and_update(a, k, fn(x) ->
@@ -44,7 +43,6 @@ defmodule Relval.Assign.Util do
   end
 end
 defmodule Relval.Assign do
-  @key :_key
   defmacro assign(bind, block) do
 #    IO.inspect [block: block]
     [do: blocks] = block
@@ -65,7 +63,7 @@ defmodule Relval.Assign do
               acc = Relval.Assign.Util.old_and_new_tuples(rel, keyword, 
                                                           bind, acc)
             end
-          {:"->", _, [[[delete: rel]], keyword]} ->
+          {:"->", _, [[[delete: rel]], _keyword]} ->
             quote bind_quoted: [rel: rel] do
               nr = Qlc.q("""
               [{element(1, X), element(2, X)} || X <- Q]

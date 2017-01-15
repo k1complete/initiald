@@ -13,7 +13,7 @@ defmodule Relval do
                          keys: list(),
                          query: nil | query() | list() | atom()}
   @key :_key
-  @relname :_relname
+#  @relname :_relname
   def make_key_from_keys([key]) do
     key
   end
@@ -27,8 +27,6 @@ defmodule Relval do
     [key]
   end
 #  @type query :: :qlc.qlc_handle()
-  @rel :_relname
-  @rel :_key
   def new(%{types: type, body: body, keys: keys, name: name}) do 
     ki = Keyword.keys(type) |> Enum.with_index()
     query = Enum.map(body, fn(x) ->
@@ -135,7 +133,7 @@ defmodule Relval do
     rai = Enum.with_index(ra, 3)
     s = Enum.map(fkeys, fn(x) -> 
       "element(#{lai[x]}, Left) =:= element(#{rai[x]}, Right)"
-    end) |> Enum.join(",") |> to_char_list()
+    end) |> Enum.join(",") |> to_charlist()
 #    IO.inspect [njoin: s, fkeys: fkeys, lai: lai, rai: rai]
 #    IO.inspect [left: Qlc.e(left.query), right: Qlc.e(right.query)]
     s0 = '[ F(Left, Right) || '
@@ -210,7 +208,7 @@ defmodule Relval do
 #    IO.inspect [keys: keys, exp: exp]
     s = Enum.map(exp, fn(x) -> "element(#{keys[x]}, X)" end) 
         |> Enum.join(",") 
-        |> to_char_list()
+        |> to_charlist()
     v = :erl_eval.add_binding(:Q, left.query, :erl_eval.new_bindings())
 #    IO.inspect [project: k, key: key]
     q = if length(exp) == 1 do
@@ -451,10 +449,11 @@ defmodule Relval do
       s = :qlc.fold(fn(t, acc) -> 
         old = Reltuple.raw_new(t, relval.types)
         new = old
-        {r, o} = Code.eval_quoted(exp, [new: new, old: old] ++ bind)
+        {r, _o} = Code.eval_quoted(exp, [new: new, old: old] ++ bind)
         new = Enum.reduce(r, old, fn({k, v}, a) ->
-          {old, new_val} = Reltuple.get_and_update(a, k, fn(x) -> 
-            {a[k], v} 
+          {_old, new_val} = Reltuple.get_and_update(a, k, fn(x) -> 
+#            {a[k], v} 
+            {x, v} 
           end)
           #IO.inspect [reduce: new_val]
           new_val
@@ -464,6 +463,7 @@ defmodule Relval do
         acc
         #                    :mnesia.write(new.tuple)
       end, [], relval.query)
+      s
     end
   end
   defmacro update(bind, do: x) do
@@ -529,11 +529,34 @@ defmodule Relval do
       Relval.Assign.assign(unquote(bind), unquote(block))
     end
   end
+  def get(t, key, default \\ nil) do
+    case fetch(t, key) do
+      :error -> default
+      {:ok, value} -> value
+    end
+  end
+  def get_and_update(t, key, f) do
+    case f.(get(t, key)) do
+      :pop ->
+        pop(t, key)
+      {old, new} ->
+        {old, new}
+    end
+  end
+  def pop(t, key) when is_tuple(key) do
+    sels = Tuple.to_list(key)
+    atts = Keyword.keys(t.types)
+    sels = atts -- sels
+    case sels do
+      [] -> :error
+      _x -> {:ok, project(t, sels)}
+    end
+  end
   def fetch(t, key) when is_tuple(key) do
     sels = Tuple.to_list(key)
     atts = Keyword.keys(t.types)
     case sels -- atts do
-      [] -> {:ok, project(t, Tuple.to_list(key))}
+      [] -> {:ok, project(t, sels)}
       _x -> :error
     end
   end

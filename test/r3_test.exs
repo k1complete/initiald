@@ -341,20 +341,4 @@ defmodule Relational_Test3 do
         relvar[{:value}] |> L.execute() |> Enum.sort()
       end)
   end
-  @tag :assign
-  test "assign"do
-    create_type()
-    relvar = R.to_relvar(:test2)
-    assert {:atomic, _} = R.t(fn() ->
-#      L.assign [s: s] do
-#        update: L.where(relvar, (value == 2)) ->
-#          [id2: old[:id], value: s+1]
-#        insert: relvar ->
-#          Relval.new()
-#        delete: L.where(relvar, (value == 2)) ->
-#          old
-       true
-#      end
-    end)
-  end
 end

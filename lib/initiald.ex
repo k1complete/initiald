@@ -28,91 +28,49 @@ defmodule InitialD do
     Relval.where(left, binding, exp)
   end
   def project(left, attributes, bool \\ true) when is_list(attributes) do
-    Stream.map(left, fn(x) ->
-                       {t_set, f_set} = Dict.split(x, attributes)
-                       if bool do
-                         t_set
-                       else
-                         f_set
-                       end
-               end) |> Enum.into(HashSet.new)
+    Relval.project(left, attributes, bool)
   end
   def fields(left) do
     Enum.at(left, 0) |> Map.keys 
   end
-  def fnjoin(left, right) do
-    lkset = fields(left) |> Enum.into(HashSet.new)
-    rkset = fields(right) |> Enum.into(HashSet.new)
-    ks = Set.intersection(lkset, rkset)
-    Enum.reduce(left, 
-                [],
-                fn(x, acc) ->
-                  z = Enum.filter_map(right,
-                                      fn(y) ->
-                                        Dict.equal?(Map.take(y, ks),
-                                                    Map.take(x, ks))
-                                      end,
-                                      fn(y) ->
-                                          Map.merge(x, y)
-                                      end)
-                    case z do
-                      [] -> acc
-                      [e] -> 
-                        [e|acc]
-                    end
-                end)
-  end
-  defp product(left, right) do
-    Enum.reduce(left, [], 
-                fn(x, acc) -> 
-                  Enum.map(right, &(Dict.merge(x, &1))) |> 
-                    Enum.into(acc)
-                end)
-  end
   def join(left, right) do
-    if (Enum.count(left) == 0 or Enum.count(right) == 0) do
-      HashSet.new()
-    else
-      fnjoin(left, right) |> Enum.into(HashSet.new)
-    end
+    Relval.join(left, right)
   end
   def matching(left, right) do
-    if (Enum.count(left) == 0 or Enum.count(right) == 0) do
-      HashSet.new()
-    else
-      lkset = fields(left)
-      fnjoin(left, right) |> project(lkset)
-    end
+    Relval.matching(left, right)
   end
   def divideby(left, right) do
     fl = fields(left)
     fr = fields(right)
     fd = fl -- fr 
     pleft = project(left, fd)
-    pr = Enum.into(product(pleft, right), HashSet.new)
+    pr = join(pleft, right)
     minus(pleft, 
           project(minus(pr, left), fd))
   end
   def rename(left, namelist) when is_list(namelist) do
-    Enum.reduce(left, HashSet.new, 
-                fn(x, a) ->
-                  r = Enum.reduce(namelist, x,
-                                  fn({from, to}, ea) ->
-                                    v = Dict.get(ea, from)
-                                    Dict.delete(Dict.put(ea, to, v), from)
-                                  end)
-                  Set.put(a, r)
-                end)
+    newtype = Enum.map(left.type, fn({k, t}) ->
+      case Keyword.get(namelist, k) do
+        nil -> 
+          {k, t}
+        v ->
+          {v, t}
+      end
+    end)
+    newkey = Enum.map(left.keys, fn(k) ->
+      case Keyword.get(namelist, k) do
+        nil -> 
+          k
+        v ->
+          v
+      end
+    end)
+    %{left | :type => newtype, :keys => newkey}
   end
-  def extend_add(left, alist) when is_list(alist) do
-    Enum.reduce(left, HashSet.new,
-                fn(e, a) ->
-                  Enum.reduce(alist, a, 
-                              fn({key, fun}, s) ->
-                                Set.put(s, Dict.put(e, key, fun.(e)))
-                              end)
-                end)
+  def extend(left, f, [{a, t}]) do
+    Relval.extend(left, f, [{a, t}]) 
   end
+  
   defmacro with2(fun, a) do
     quote bind_quoted: [fun: fun, a: a] do
       a = fun.()

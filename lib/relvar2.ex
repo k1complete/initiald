@@ -7,7 +7,7 @@ defmodule Relvar2 do
   @behaviour Access
 
   @key :_key
-  @relname :_relname
+#  @relname :_relname
   defstruct name: nil, types: nil, 
             keys: nil, attributes: nil, constraints: nil,
             query: nil
@@ -278,6 +278,18 @@ defmodule Relvar2 do
     keyitem = get_key_from_tuple(t, relvar)
 #    IO.inspect [delete_t_keyitem: keyitem]
     :mnesia.delete({relvar.name, keyitem})
+  end
+  def get(t, key, default \\ nil) do
+    case fetch(t, key) do
+      :error -> default
+      {:ok, value} -> value
+    end
+  end
+  def get_and_update(t, key, f) do
+    Relval.get_and_update(t, key, f)
+  end
+  def pop(t, key) when is_tuple(key) do
+    Relval.pop(t, key)
   end
   def fetch(t, key) when is_tuple(key) do
     Relval.fetch(t, key)

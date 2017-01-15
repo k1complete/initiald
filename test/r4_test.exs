@@ -78,7 +78,7 @@ defmodule Relational_Test4 do
   test "assign" do
     create_type()
     relvar = R.to_relvar(:test2)
-    assert {:atomic, ret} = R.t(fn() ->
+    assert {:atomic, _ret} = R.t(fn() ->
       L.assign [s: s] do
 #        update: L.where(relvar, (value == 2)) ->
 #          [id2: old[:id], value: s+1]
@@ -98,7 +98,7 @@ defmodule Relational_Test4 do
     create_type()
     relvar = R.to_relvar(:test2)
     s = 1
-    assert {:atomic, ret} = R.t(fn() ->
+    assert {:atomic, _ret} = R.t(fn() ->
       L.assign [s: s] do
         update: L.where(relvar, (value == 2)) ->
 #          IO.inspect [s: s]
