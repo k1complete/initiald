@@ -33,7 +33,7 @@ defmodule Initiald.Mixfile do
   defp deps do
     [{:ex_doc, "~> 0.14", only: :dev, git: "https://github.com/elixir-lang/ex_doc.git"},
      {:earmark, "~> 1.0", only: :dev},
-     {:qlc, "~> 1.0", path: "../qlc"},
+     {:qlc, "~> 1.0", github: "k1complete/qlc"},
      {:dialyxir, "~> 0.3", only: [:dev]}
     ]
   end
