@@ -255,7 +255,6 @@ defmodule Relvar2 do
       write(relvar, t) 
     end)
   end
-  @spec update(relval, (tuple -> tuple), __MODULE__.t) :: list | no_return
   def update(relval, updatefn, %__MODULE__{} = relvar) do
 #    IO.inspect [update: relval]
     try do
@@ -272,7 +271,6 @@ defmodule Relvar2 do
      {e, r} -> raise(e, r)
     end
   end
-  @spec delete(__MODULE__.t, keys) :: :ok | no_return
   def delete(relvar, t) do
 #    IO.inspect [delete_t: t]
     keyitem = get_key_from_tuple(t, relvar)

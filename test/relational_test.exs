@@ -255,15 +255,19 @@ defmodule RelationalTest do
   end
   test "Relational operation extend" do
     create_type()
-#    relvar = R.to_relvar(:test2)
-#    assert {:atomic, 
-#            %{%{id: :atom1} => %{value: 2, id_sub: :atom1_1}, 
-#              %{id: :atom2} => %{value: 4, id_sub: :atom2_1}}} ==
-#      R.t(fn() -> 
-#        Initiald.extend_add(relvar, :id_sub, fn({k,_v}) -> 
-#          x = Map.get(k, :id)
-#          :"#{x}_1" 
-#        end)
-#      end)
+    relvar = R.to_relvar(:test2)
+    assert {:atomic, 
+            L.raw_new(%{body: [{:test2, :atom1, :atom1, 2, :atom1_1},
+                               {:test2, :atom2, :atom2, 4, :atom2_1}],
+                        types: [id: :atom, value: :odd, id_sub: :atom],
+                        name: :test2,
+                        keys: [:id]} 
+           ) |> L.execute() |> Enum.sort() } == 
+      R.t(fn() -> 
+        L.extend(relvar,  fn(t) -> 
+          x = t[:id]
+          :"#{x}_1"
+        end, id_sub: :atom) |> L.execute() |> Enum.sort()
+      end)
   end
 end

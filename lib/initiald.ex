@@ -25,7 +25,9 @@ defmodule InitialD do
     Relval.intersect(left, right)
   end
   defmacro where(left, binding \\ [], exp) do
-    Relval.where(left, binding, exp)
+    quote bind_quoted: [left: left, binding: binding, exp: exp] do
+      Relval.where(left, binding, exp)
+    end
   end
   def project(left, attributes, bool \\ true) when is_list(attributes) do
     Relval.project(left, attributes, bool)
@@ -88,38 +90,9 @@ defmodule InitialD do
       Relval.update(unquote(bind), do: unquote(x))
     end
   end
-  @doc """
-  relational insert 
-
-  it is equivalent to:
-  left = union(left, right)
-  """
-  def insert(left, right) do
-    write!(left, right)
+  defmacro assign(bind, block) do
+    quote bind_quoted: [bind: bind, block: block] do
+      Relval.assign(bind, block)
+    end
   end
-  @doc """
-  relational delete assignment
-
-  it is equivalent to:
-
-  left = where(left, &(not(wfun.(&1))))
-  """
-  def delete(left) do
-    Relval.delete(left)
-  end
-  @doc """
-  delete d from left
-  """
-  def delete!(left, _d) do
-#    IO.inspect [delete: left]
-    left
-  end
-  @doc """
-  update or insert to left
-  """
-  def write!(left, _u) do
-#    IO.inspect [write: left]
-    left
-  end
-
 end

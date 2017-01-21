@@ -36,7 +36,7 @@ defmodule Constraint do
   @doc """
   create new constraint for relvars, by definition.
   """
-  @spec create(String.t, maybe_improper_list(), (... -> any)) :: boolean() | no_return() | none()
+  @spec create(String.t, [atom()], (any -> boolean | no_return)) :: boolean() | no_return()
   def create(constraint, relvars, definition) do
     c = R.to_relvar(@constraint)
     rc = R.to_relvar(@relvar_constraint)
@@ -53,9 +53,9 @@ defmodule Constraint do
       [] ->
         :ok
       x when is_list(x) ->
-        Enum.each(x, fn(x) -> :mnesia.delete(@relvar_constraint, x, :write) end)
-      error ->
-        :mnesia.abort(error)
+        Enum.each(x, fn(x) -> 
+          :mnesia.delete(@relvar_constraint, x, :write) 
+        end)
     end
     :mnesia.delete(@constraint, constraint, :write)
   end

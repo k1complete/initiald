@@ -9,7 +9,7 @@ defmodule Relval.Assign.Util do
       {r, _o} = Code.eval_quoted(exp, [old: old] ++ bind)
 #      IO.inspect [r: r]
       new_candidate = Enum.reduce(r, old, fn({k, nv}, a) ->
-        {old_att, new_val} = Reltuple.get_and_update(a, k, fn(x) ->
+        {_old_att, new_val} = Reltuple.get_and_update(a, k, fn(x) ->
 #          IO.inspect [a: a, k: k, v: nv, x: x, r: r]
           case Reltype.validate(a.types[k], nv) do
             true -> 

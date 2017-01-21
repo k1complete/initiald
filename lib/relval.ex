@@ -336,9 +336,12 @@ defmodule Relval do
     q
   end
   def extend(left, f, [{a, t}]) do
-    q = Qlc.q("[erlang:append_element(F(R), R) || R <- Left]",
-      [F: fn(x) -> f.(x) end,
-      Left: left.query])
+    q = Qlc.q("[erlang:append_element(R, F(R)) || R <- Left]",
+      [F: 
+       fn(x) -> 
+         f.(Reltuple.raw_new(x, left.types))
+       end,
+       Left: left.query])
     %Relval{types: left.types ++ [{a, t}],
             query: q,
             name: left.name,
