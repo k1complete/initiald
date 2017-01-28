@@ -20,10 +20,13 @@ defmodule Relval do
   def make_key_from_keys(keys) do
     List.to_tuple(keys)
   end
+  def key_from_keys({key}) do
+    [key]
+  end
   def key_from_keys(key) when is_tuple(key) do
     Tuple.to_list(key)
   end
-  def key_from_keys(key) when is_atom(key) do
+  def key_from_keys(key) do
     [key]
   end
 #  @type query :: :qlc.qlc_handle()
@@ -34,7 +37,7 @@ defmodule Relval do
       v = Enum.zip(Keyword.keys(type), y)
       case R.valid(v, type) do
         [] -> 
-#          IO.inspect [ y: y, type: type]
+#          IO.inspect [ y: y, type: type, ki: ki, keys: keys]
           ky = Enum.map(keys, &(Enum.at(y, ki[&1])))
           List.to_tuple([name, make_key_from_keys(ky) | y])
         ret ->
@@ -71,8 +74,9 @@ defmodule Relval do
       true ->
         q = f.(left.query, right.query, left.name)
  #       IO.puts :qlc.info(q)
-        %__MODULE__{types: right.types, query: q}
+        %__MODULE__{name: left.name, types: right.types, query: q, keys: left.keys}
       false ->
+        IO.inspect [left: left.types, right: right.types]
         {:error, :bad_reltype}
     end
   end
@@ -132,13 +136,13 @@ defmodule Relval do
     lai = Enum.with_index(la, 3)
     rai = Enum.with_index(ra, 3)
     s = Enum.map(fkeys, fn(x) -> 
-      "element(#{lai[x]}, Left) =:= element(#{rai[x]}, Right)"
-    end) |> Enum.join(",") |> to_charlist()
+      ", element(#{lai[x]}, Left) =:= element(#{rai[x]}, Right)"
+    end) |> Enum.join("") |> to_charlist()
 #    IO.inspect [njoin: s, fkeys: fkeys, lai: lai, rai: rai]
 #    IO.inspect [left: Qlc.e(left.query), right: Qlc.e(right.query)]
     s0 = '[ F(Left, Right) || '
 #    s0 = '[ { Left, Right } || '
-    s1 = 'Left <- L, Right <- R, '
+    s1 = 'Left <- L, Right <- R'
     s2 = s0 ++ s1 ++ s ++ ' ].'
 #    IO.inspect [string: s2, right_keys: right.keys, rarest: rarest]
     types = pt.(left.types, rarest, right.types)
@@ -155,7 +159,7 @@ defmodule Relval do
 #                       ltype: left.types,
 #               rtype: right.types,
 #               fkeys: fkeys}]
-    %__MODULE__{types: types, keys: keys, query: q}
+    %__MODULE__{name: left.name, types: types, keys: keys, query: q}
 #    IO.inspect [types: Keyword.drop(right.types, fjkeys)]
   end
   @spec matching(t, t) :: t
@@ -219,11 +223,11 @@ defmodule Relval do
 #    IO.inspect [q: q, v: v]
     ret = %Relval{
       name: left.name,
-      keys: key,
+      keys: exp,
       types: Enum.map(exp, fn(x) -> {x, Keyword.get(left.types, x) } end),
       query: :qlc.string_to_handle(q, [unique: true], v)
     }
-#    IO.inspect [ret: ret]
+#    IO.inspect [project_ret: ret]
     ret
   end
   def project(left, r, bool \\ true) do
@@ -327,7 +331,7 @@ defmodule Relval do
 #    m = IO.puts Macro.to_string(exp)
     s = Macro.escape(exp)
     q = quote bind_quoted: [left: left, exp: s, binding: binding] do
-#      IO.puts Macro.to_string(exp)
+#      IO.puts Macro.to_string(s)
 #      IO.puts Macro.to_string(mexp)
       %Relval{name: left.name, keys: left.keys,
               types: left.types, query: Relval.do_where(left, exp, binding)}

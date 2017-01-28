@@ -1,7 +1,8 @@
 defmodule Relval.Assign.Util do
+  @moduledoc """
+  support for assign expression using reltuple.
+  """
   def old_and_new_tuples(rel, exp, bind, result) do
-#    IO.inspect [old_and_new_tuples: bind, exp: exp]
-#    old = Reltuple.raw_new(nr, rel.types)
     :qlc.fold(fn(t, acc) ->
 #      IO.inspect [fold: t, exp: exp, rel: rel, type: rel.types]
       old = Reltuple.raw_new(t, rel.types)
@@ -43,6 +44,18 @@ defmodule Relval.Assign.Util do
   end
 end
 defmodule Relval.Assign do
+  @moduledoc """
+  relational assign expression
+
+      assign [binding] do
+        update: relval -> [attribute_name: new_value]
+        delete: relval -> [any]
+        insert: relvar -> relval
+      end
+
+      ==> true | false
+
+  """
   defmacro assign(bind, block) do
 #    IO.inspect [block: block]
     [do: blocks] = block
