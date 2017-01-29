@@ -1,4 +1,6 @@
-defmodule Reltype do
+alias InitialD.Reltype
+
+defmodule InitialD.Reltype do
   require Record
   require Qlc
   @reltype :reltype
@@ -48,7 +50,7 @@ defmodule Reltype do
     :mnesia.table(@reltype)
   end
 end
-defmodule RelType.TypeConstraintError do
+defmodule Reltype.TypeConstraintError do
   defexception [type: nil, value: nil, attribute: nil]
   def message(exception) do
     "type #{inspect(exception.type)}, value: #{inspect(exception.value)}, attribute: #{inspect(exception.attribute)}"

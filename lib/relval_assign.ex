@@ -1,4 +1,6 @@
-defmodule Relval.Assign.Util do
+alias InitialD.Reltype
+alias InitialD.Reltuple
+defmodule InitialD.Relval.Assign.Util do
   @moduledoc """
   support for assign expression using reltuple.
   """
@@ -16,7 +18,7 @@ defmodule Relval.Assign.Util do
             true -> 
               {x, nv}
             _ -> 
-              raise(RelType.TypeConstraintError, 
+              raise(Reltype.TypeConstraintError, 
                     [type: a.types[k], 
                       value: nv,
                       attribute: k])
@@ -43,7 +45,7 @@ defmodule Relval.Assign.Util do
     end, result, rel.query)
   end
 end
-defmodule Relval.Assign do
+defmodule InitialD.Relval.Assign do
   @moduledoc """
   relational assign expression
 
@@ -73,7 +75,7 @@ defmodule Relval.Assign do
               [X || X <- Q]
               """, [Q: rel])
 #              IO.inspect [keyword2: Macro.escape(keyword), rel: rel]
-              acc = Relval.Assign.Util.old_and_new_tuples(rel, keyword, 
+              acc = InitialD.Relval.Assign.Util.old_and_new_tuples(rel, keyword, 
                                                           bind, acc)
             end
           {:"->", _, [[[delete: rel]], _keyword]} ->
@@ -140,7 +142,7 @@ defmodule Relval.Assign do
 #        IO.inspect [NG: t]
         :mnesia.abort(:update_abort)
       end
-      ret =Constraint.validate(Enum.to_list(t[:relations]))
+      ret =InitialD.Constraint.validate(Enum.to_list(t[:relations]))
 #      IO.inspect [ret: ret, rel: Enum.to_list(t[:relations])]
       if (ret != :ok) do
 #        IO.inspect [NG: ret]

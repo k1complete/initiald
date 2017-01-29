@@ -1,6 +1,7 @@
 defmodule ConstraintTest do
   use ExUnit.Case, async: false
   require Qlc
+  use InitialD
   alias Relvar2, as: R
   alias Relval, as: L
   require Relvar2

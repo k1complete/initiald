@@ -1,4 +1,4 @@
-defmodule Relutil do
+defmodule InitialD.Relutil do
   @doc """
   database record to pure tuple
 

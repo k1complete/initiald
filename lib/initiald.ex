@@ -1,3 +1,4 @@
+alias InitialD.Relval
 defmodule InitialD do
   require Relval
   @behaviour Access
@@ -7,6 +8,12 @@ defmodule InitialD do
   """
   defmacro __using__(_ops) do
     quote do
+      alias InitialD.Relval
+      alias InitialD.Reltype
+      alias InitialD.Relvar2
+      alias InitialD.Reltuple
+      alias InitialD.Constraint
+      alias InitialD
       require Relval
       require Reltype
       require Relvar2

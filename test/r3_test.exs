@@ -1,6 +1,7 @@
 defmodule Relational_Test3 do
   use ExUnit.Case, async: false
   require Qlc
+  use InitialD
   require Relvar2
   require Relval
   require Reltype
@@ -323,7 +324,7 @@ defmodule Relational_Test3 do
     relvar = R.to_relvar(:test2)
     s = 2
     assert {:aborted,
-            %RelType.TypeConstraintError{attribute: :value, type: :odd,
+            %Reltype.TypeConstraintError{attribute: :value, type: :odd,
                                           value: 3}} == R.t(fn() ->
       L.update [s: s] do
         L.where(relvar, (value == 4)) ->

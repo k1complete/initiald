@@ -1,4 +1,11 @@
-defmodule Relvar2 do
+alias InitialD.Constraint
+alias InitialD.Relval
+alias InitialD.Relvar2
+alias InitialD.Reltype
+alias InitialD.Relutil
+alias InitialD.Reltuple
+
+defmodule InitialD.Relvar2 do
   require Logger
   require Qlc
 #  alias Relval2, as: L

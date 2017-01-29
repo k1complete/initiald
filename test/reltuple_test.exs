@@ -1,6 +1,7 @@
 defmodule ReltupleTest do
 
   use ExUnit.Case, async: false
+  use InitialD
   alias Relval, as: L
   alias Reltuple, as: T
   alias Relvar2, as: R

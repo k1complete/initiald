@@ -1,4 +1,9 @@
-defmodule Relval do
+alias InitialD.Relvar2
+alias InitialD.Relval
+alias InitialD.Reltype
+alias InitialD.Reltuple
+
+defmodule InitialD.Relval do
   require Qlc
   require Logger
   require Reltuple
@@ -42,7 +47,7 @@ defmodule Relval do
           List.to_tuple([name, make_key_from_keys(ky) | y])
         ret ->
           m = Enum.map(ret, fn({a, {t, v}}) ->
-                RelType.TypeConstraintError.exception(
+                Reltype.TypeConstraintError.exception(
                   [type: t, value: v, attribute: a])
               end)
 #          IO.inspect [m: m]
@@ -221,7 +226,7 @@ defmodule Relval do
       '[ { element(1, X), {#{s}}, #{s} } || X <- Q ].'
     end
 #    IO.inspect [q: q, v: v]
-    ret = %Relval{
+    ret = %__MODULE__{
       name: left.name,
       keys: exp,
       types: Enum.map(exp, fn(x) -> {x, Keyword.get(left.types, x) } end),
@@ -333,7 +338,7 @@ defmodule Relval do
     q = quote bind_quoted: [left: left, exp: s, binding: binding] do
 #      IO.puts Macro.to_string(s)
 #      IO.puts Macro.to_string(mexp)
-      %Relval{name: left.name, keys: left.keys,
+      %InitialD.Relval{name: left.name, keys: left.keys,
               types: left.types, query: Relval.do_where(left, exp, binding)}
     end
 #    IO.puts Macro.to_string(q)
@@ -346,7 +351,7 @@ defmodule Relval do
          f.(Reltuple.raw_new(x, left.types))
        end,
        Left: left.query])
-    %Relval{types: left.types ++ [{a, t}],
+    %__MODULE__{types: left.types ++ [{a, t}],
             query: q,
             name: left.name,
             keys: left.keys}
@@ -397,7 +402,7 @@ defmodule Relval do
                end,
                Right: right.query])
 #    IO.inspect [summarize_debug: Relval.execute(q)]
-    %Relval{types: right.types ++ summary_types, 
+    %__MODULE__{types: right.types ++ summary_types, 
             query: q, 
             name: right.name, keys: right.keys}
   end

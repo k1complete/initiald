@@ -2,6 +2,7 @@ defmodule TeddTest do
   use ExUnit.Case, async: false
   require Logger
   require Qlc
+  use InitialD
   require Constraint
   alias Relvar2, as: R
   alias Relval, as: L

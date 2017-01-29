@@ -1,4 +1,7 @@
-defmodule Constraint do
+alias InitialD.Relval
+alias InitialD.Relvar2
+alias InitialD.Reltype
+defmodule InitialD.Constraint do
   require Record
   alias Relvar2, as: R
   alias Relval, as: L

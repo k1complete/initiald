@@ -1,4 +1,5 @@
-defmodule Reltuple do
+alias InitialD.Reltype
+defmodule InitialD.Reltuple do
   @behaviour Access
   defstruct tuple_index: %{}, tuple: {}, types: []
   @type t :: %__MODULE__{tuple_index: map, tuple: tuple, types: keyword}
@@ -11,7 +12,7 @@ defmodule Reltuple do
     Enum.all?(types, fn({k, v}) -> 
       case Reltype.validate(v, ret[k]) do
         true -> true
-        _ -> raise(RelType.TypeConstraintError, [type: v, value: ret[k], attribute: k])
+        _ -> raise(Reltype.TypeConstraintError, [type: v, value: ret[k], attribute: k])
       end
     end)
     ret

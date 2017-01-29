@@ -2,6 +2,7 @@ ExUnit.start()
 defmodule Relational_Test4 do
   use ExUnit.Case, async: false
   require Qlc
+  use InitialD
   require Relvar2
   require Relval
   require Relval.Assign
@@ -117,11 +118,11 @@ defmodule Relational_Test4 do
   end
   @tag :assign2
   test "type3" do
-    assert catch_error(raise(RelType.TypeConstraintError, 
+    assert catch_error(raise(Reltype.TypeConstraintError, 
                              [type: :odd, 
                               value: 3,
                               attribute: :value])) == 
-      %RelType.TypeConstraintError{attribute: :value, type: :odd, value: 3}
+      %Reltype.TypeConstraintError{attribute: :value, type: :odd, value: 3}
   end
   test "assign3" do
     create_type()
@@ -129,7 +130,7 @@ defmodule Relational_Test4 do
     s = 1
     assert {:aborted, 
             {:error, 
-             %RelType.TypeConstraintError{attribute: :value, type: :odd,
+             %Reltype.TypeConstraintError{attribute: :value, type: :odd,
                                           value: 3}}} ==
       R.t(fn() ->
         L.assign [s: s] do
@@ -155,9 +156,9 @@ defmodule Relational_Test4 do
             {:error, 
              %Relval.ConstraintError{
                constraints: [
-                 %RelType.TypeConstraintError{attribute: :value, type: :odd,
+                 %Reltype.TypeConstraintError{attribute: :value, type: :odd,
                                               value: 11},
-                 %RelType.TypeConstraintError{attribute: :id, type: :atom,
+                 %Reltype.TypeConstraintError{attribute: :id, type: :atom,
                                               value: 3}],
                  relname: :test2}}} ==
       R.t(fn() ->
