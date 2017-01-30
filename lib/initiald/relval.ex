@@ -1,4 +1,4 @@
-alias InitialD.Relvar2
+alias InitialD.Relvar
 alias InitialD.Relval
 alias InitialD.Reltype
 alias InitialD.Reltuple
@@ -8,7 +8,7 @@ defmodule InitialD.Relval do
   require Logger
   require Reltuple
   require Relval.Assign
-  alias Relvar2, as: R
+  alias Relvar, as: R
   @behaviour Access
   defstruct types: Keyword.new(), keys: [], query: nil, name: nil
 #  @type qlc_handle :: :qlc.qlc_handle()

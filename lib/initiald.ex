@@ -11,7 +11,7 @@ defmodule InitialD do
     quote do
       alias InitialD.Relval
       alias InitialD.Reltype
-      alias InitialD.Relvar2, as: Relvar
+      alias InitialD.Relvar
       alias InitialD.Reltuple
       alias InitialD.Constraint
       alias InitialD

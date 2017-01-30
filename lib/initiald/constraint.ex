@@ -1,5 +1,5 @@
 alias InitialD.Relval
-alias InitialD.Relvar2, as: Relvar
+alias InitialD.Relvar
 alias InitialD.Reltype
 defmodule InitialD.Constraint do
   require Record

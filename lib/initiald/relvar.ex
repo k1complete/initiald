@@ -1,11 +1,11 @@
 alias InitialD.Constraint
 alias InitialD.Relval
-alias InitialD.Relvar2
+alias InitialD.Relvar
 alias InitialD.Reltype
 alias InitialD.Relutil
 alias InitialD.Reltuple
 
-defmodule InitialD.Relvar2 do
+defmodule InitialD.Relvar do
   require Logger
   require Qlc
 #  alias Relval2, as: L
@@ -301,8 +301,8 @@ defmodule InitialD.Relvar2 do
   end
   
 end
-defimpl Enumerable, for: Relvar2 do
-  alias Relvar2, as: R
+defimpl Enumerable, for: Relvar do
+  alias Relvar, as: R
   require Logger
   @spec count(R.t) :: {:ok, non_neg_integer} | no_return
   def count(v) do
@@ -354,8 +354,8 @@ defimpl Enumerable, for: Relvar2 do
   end
 end
 
-defimpl Collectable, for: Relvar2 do
-  alias Relvar2, as: R
+defimpl Collectable, for: Relvar do
+  alias Relvar, as: R
   def into(v) do
     {v, fn 
       (relvar, {:cont, x}) -> 
