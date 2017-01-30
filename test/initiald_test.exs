@@ -5,7 +5,7 @@ defmodule TutorialDTest do
   import InitialD
   require Reltype
   require Relval
-  alias Relvar2, as: R
+  alias Relvar, as: R
   @moduletag :initiald
   @key :_key
   setup_all do
@@ -24,7 +24,7 @@ defmodule TutorialDTest do
             (x) when is_binary(x) -> String.to_atom(x) 
           end
     )
-    assert({:atomic, :ok} == Relvar2.t(fn() -> Reltype.create(m) end))
+    assert({:atomic, :ok} == Relvar.t(fn() -> Reltype.create(m) end))
     m = Reltype.reltype(typename: :odd, 
                         definition: fn(x) -> rem(x, 2) == 0 end)
     assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))

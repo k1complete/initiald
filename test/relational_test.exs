@@ -2,10 +2,10 @@ defmodule RelationalTest do
   use ExUnit.Case, async: false
   require Qlc
   use InitialD
-  alias Relvar2, as: R
+  alias Relvar, as: R
   alias Relval, as: L
   require Reltype
-  require Relvar2
+  require Relvar
   require Relval
   @moduletag :test_rel
 

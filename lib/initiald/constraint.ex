@@ -1,9 +1,9 @@
 alias InitialD.Relval
-alias InitialD.Relvar2
+alias InitialD.Relvar2, as: Relvar
 alias InitialD.Reltype
 defmodule InitialD.Constraint do
   require Record
-  alias Relvar2, as: R
+  alias Relvar, as: R
   alias Relval, as: L
   require Qlc
   @relvar_constraint :__relvar_constraint__

@@ -3,26 +3,29 @@ defmodule InitialD do
   require Relval
   @behaviour Access
   @doc """
-   deftype :qpr, [q: list(integer)],
-                 [constraint: fn(x) -> %x(:aa)]
+  initialize InitialD 
+
+
   """
   defmacro __using__(_ops) do
     quote do
       alias InitialD.Relval
       alias InitialD.Reltype
-      alias InitialD.Relvar2
+      alias InitialD.Relvar2, as: Relvar
       alias InitialD.Reltuple
       alias InitialD.Constraint
       alias InitialD
       require Relval
       require Reltype
-      require Relvar2
+      require Relvar
       require InitialD
       import InitialD
     end
   end
   @doc """
+  union left and right
 
+  ## example
 
       iex> R.t(fn() ->
       ...>   union(Relval.new(%{types: [value: :odd, id: :atom, id2: :atom],
@@ -52,7 +55,9 @@ defmodule InitialD do
   end
 
   @doc """
+  minus right from left
 
+  ## example
 
       iex> R.t(fn() ->
       ...>   minus(Relval.new(%{types: [value: :odd, id: :atom, id2: :atom],
@@ -78,6 +83,9 @@ defmodule InitialD do
     Relval.minus(left, right)
   end
   @doc """
+  intersect left and right
+
+  ## example
 
       iex> R.t(fn() ->
       ...>   intersect(Relval.new(%{types: [value: :odd, id: :atom, id2: :atom],
@@ -103,10 +111,11 @@ defmodule InitialD do
   end
   @doc """
   where relval, binding, expression
+
   expression: Attributename op exp
   op: '==' | '>=' | '<=' | '!=' | '>' | '<'
 
-  example
+  ## example
 
       ...> R.t(fn() ->
       ...>   where(Relval.new(%{types: [value: :odd, id: :atom, id2: :atom],
@@ -128,8 +137,28 @@ defmodule InitialD do
     end
   end
   @doc """
+  projection
 
+  ## example
 
+      iex> R.t(fn() ->
+      ...>   p = Relval.new(%{types: [value: :odd, id: :atom, id2: :atom],
+      ...>                    body: [{12, :a1, :a23},
+      ...>                           {14, :a1, :a24},
+      ...>                           {16, :a1, :a25}],
+      ...>                    keys: [:id, :id2],
+      ...>                    name: :test2})
+      ...>   project(p, [:id, :value]) |>
+      ...>   Relval.execute() |>
+      ...>   Enum.sort()
+      ...> end)
+      {:atomic, 
+       [{:test2, {:a1, 12}, :a1, 12}, 
+        {:test2, {:a1, 14}, :a1, 14}, 
+        {:test2, {:a1, 16}, :a1, 16}]}
+
+   shortcut: p[tuple_of_attributes]
+ 
       iex> R.t(fn() ->
       ...>   p = Relval.new(%{types: [value: :odd, id: :atom, id2: :atom],
       ...>                    body: [{12, :a1, :a23},
@@ -145,6 +174,8 @@ defmodule InitialD do
        [{:test2, {:a1, 12}, :a1, 12}, 
         {:test2, {:a1, 14}, :a1, 14}, 
         {:test2, {:a1, 16}, :a1, 16}]}
+
+
   """
   def project(left, attributes, bool \\ true) when is_list(attributes) do
     Relval.project(left, attributes, bool)
@@ -190,6 +221,7 @@ defmodule InitialD do
         {:test2_test3, {:a1, :a24}, 14, :a1, :a24, :atom1},
         {:test2_test3, {:a1, :a25}, 16, :a1, :a25, :atom1}]}
   """
+  @spec join(InitialD.Relval.t, InitialD.Relval.t) :: InitialD.Relval.t
   def join(left, right) do
     Relval.join(left, right)
   end
@@ -217,6 +249,7 @@ defmodule InitialD do
        [{:test2, {:a1, :a23}, 12, :a1, :a23},
         {:test2, {:a1, :a24}, 14, :a1, :a24}]}
   """
+  @spec matching(InitialD.Relval.t, InitialD.Relval.t) :: InitialD.Relval.t
   def matching(left, right) do
     Relval.matching(left, right)
   end
@@ -224,7 +257,9 @@ defmodule InitialD do
   divide by
   divide 
 
-  ## example (from Database in Depth: Relational Model for Practitioners's sample model)
+  ## example 
+
+  from Database in Depth: Relational Model for Practitioners's sample model
   
       iex> R.t(fn() ->
       ...>   sp = Relval.new(%{types: [sno: :atom, pno: :atom, qty: :odd],
@@ -251,12 +286,13 @@ defmodule InitialD do
       ...>                           {:p6, :cog, :red}],
       ...>                    keys: [:pno],
       ...>                    name: :p})
-      ...>   divideby(project(sp, [:sno, :pno]), project(p, [:pno])) |> 
+      ...>   divideby(sp[{:sno, :pno}], p[{:pno}]) |> 
       ...>            Relval.execute() |> Enum.sort()
       ...> end)
       {:atomic, 
        [{:sp, :s1, :s1}]}
   """
+  @spec divideby(InitialD.Relval.t, InitialD.Relval.t) :: InitialD.Relval.t
   def divideby(left, right) do
     fl = fields(left)
     fr = fields(right)
@@ -276,8 +312,26 @@ defmodule InitialD do
                 left)[fdt])
 
   end
+  @doc """
+  rename relval's attributes follow keyword list oldname to newname.
+  this is not ddl(ALTER TABLE ... RENAME .. in SQL).
+ 
+      iex> R.t(fn() ->
+      ...>   sp = Relval.new(%{types: [sno: :atom, pno: :atom, qty: :odd],
+      ...>                    body: [{:s1, :p1, 300},
+      ...>                           {:s1, :p2, 200}],
+      ...>                    keys: [:sno, :pno],
+      ...>                    name: :sp})
+      ...>  rename(sp, [pno: :product_number])
+      ...> end)
+      {:atomic,
+        %InitialD.Relval{keys: [:sno, :product_number], name: :sp,
+          query: [{:sp, {:s1, :p1}, :s1, :p1, 300},
+                  {:sp, {:s1, :p2}, :s1, :p2, 200}],
+          types: [sno: :atom, product_number: :atom, qty: :odd]}}
+  """
   def rename(left, namelist) when is_list(namelist) do
-    newtype = Enum.map(left.type, fn({k, t}) ->
+    newtype = Enum.map(left.types, fn({k, t}) ->
       case Keyword.get(namelist, k) do
         nil -> 
           {k, t}
@@ -293,11 +347,32 @@ defmodule InitialD do
           v
       end
     end)
-    %{left | :type => newtype, :keys => newkey}
+    %{left | :types => newtype, :keys => newkey}
   end
+  @doc """
+  add new attribute from fun
+  this is not ddl(ALTER TABLE ... ADD COLUMN .. in SQL).
+
+  ## example
+
+      iex> R.t(fn() ->
+      ...>   sp = Relval.new(%{types: [sno: :atom, pno: :atom, qty: :odd],
+      ...>                    body: [{:s1, :p1, 300},
+      ...>                           {:s1, :p2, 240}],
+      ...>                    keys: [:sno, :pno],
+      ...>                    name: :sp})
+      ...>  extend(sp, fn(r) -> div(r[:qty],12) end, [dars: :odd]) |>
+      ...>    Relval.execute() |> Enum.sort()
+      ...> end)
+      {:atomic,
+        [{:sp, {:s1, :p1}, :s1, :p1, 300, 25},
+         {:sp, {:s1, :p2}, :s1, :p2, 240, 20}]}
+  
+  """
   def extend(left, f, [{a, t}]) do
     Relval.extend(left, f, [{a, t}]) 
   end
+
   
   defmacro with2(fun, a) do
     quote bind_quoted: [fun: fun, a: a] do
@@ -305,17 +380,15 @@ defmodule InitialD do
     end
   end
   @doc """
-  relational update
+  relational assingment
 
-  it is equivalent to:
+  is equivalent to:
   u = ((s = where(left, wfun)) |> extend_add(sfun_list))
   left = union(minus(left, s), u)
+
+
+  
   """
-  defmacro update(bind, do: x) do
-    quote do 
-      Relval.update(unquote(bind), do: unquote(x))
-    end
-  end
   defmacro assign(bind, block) do
     quote bind_quoted: [bind: bind, block: block] do
       Relval.assign(bind, block)

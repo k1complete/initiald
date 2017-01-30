@@ -4,7 +4,7 @@ defmodule ReltupleTest do
   use InitialD
   alias Relval, as: L
   alias Reltuple, as: T
-  alias Relvar2, as: R
+  alias Relvar, as: R
   require Reltuple
   require Reltype
   @moduletag :tt
