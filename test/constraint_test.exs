@@ -44,18 +44,8 @@ defmodule ConstraintTest do
   def create_type do
     keys = [:id]
     types = [id: :atom, value: :odd]
-    assert(struct(R, %{:keys => keys, 
-                       :name => :test2,
-                       :types => types,
-                       :attributes => [@key, :id, :value]
-        })
-           == R.create(:test2, [:id], [id: :atom, value: :odd]))
+    R.create(:test2, [:id], [id: :atom, value: :odd])
     m = R.create(:test22, [:value], [value: :odd, mark: :atom])
-    assert(struct(R, %{:keys => [:value],
-                       :name => :test22,
-                       :types => [value: :odd, mark: :atom],
-                       :attributes => [@key, :value, :mark]})
-           == m)
   end
   test "create/3" do
     create_type()

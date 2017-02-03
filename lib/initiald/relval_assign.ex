@@ -36,10 +36,11 @@ defmodule InitialD.Relval.Assign.Util do
       acc = if (elem(old.tuple, 1) === elem(new.tuple, 1)) do
         acc
       else
-        Map.put(acc, :deletes, [old | acc[:deletes]] )
+        Map.put(acc, :deletes, [{elem(old.tuple,0),
+                                 elem(old.tuple,1)}| acc[:deletes]] )
       end
 #      IO.inspect [acc: acc]
-      acc = Map.put(acc, :updates, [new | acc[:updates]])
+      acc = Map.put(acc, :updates, [new.tuple | acc[:updates]])
 #      IO.inspect [acc2: acc]
       acc
     end, result, rel.query)
@@ -95,15 +96,22 @@ defmodule InitialD.Relval.Assign do
               acc = Map.put(acc, :relations, 
                             MapSet.put(acc[:relations], table))
               nr = Qlc.q("""
-              [erlang:setelement(1, erlang:setelement(2, X, F(X)), N) ||
+              [F(X) ||
               X <- Q]
               """, [Q: newrel.query, 
                     F: fn(x) -> 
-                      :erlang.element(2, x)
-                    end,
-                    N: table])
+                      t = InitialD.Reltuple.raw_new(x, newrel.types)
+                      k = Enum.reduce(keys, [], 
+                                      fn(e, a) -> 
+                                        IO.inspect [a: t[e], e: e, types: newrel.types]
+                                        [t[e] | a]
+                                      end) |> Enum.reverse()
+                      IO.inspect [k: k, keys: keys]
+                      x = [table, List.to_tuple(k) | Enum.map(Keyword.keys(rel.types), &(t[&1]))]
+                      List.to_tuple(x)
+                    end])
               e = Qlc.e(nr)
-#              IO.inspect [e: e]
+              IO.inspect [e: e]
               acc = Map.put(acc, :updates, e ++ acc[:updates] )
             end
         end
@@ -113,8 +121,8 @@ defmodule InitialD.Relval.Assign do
     
     ret = quote do
       acc = %{updates: [], deletes: [], relations: MapSet.new()}
-      #IO.inspect [tuples: tuples]
-      try do
+#      IO.inspect [tuples: unquote(tuples)]
+      acc = try do
         unquote_splicing(tuples)
       catch 
         e, m ->
@@ -122,26 +130,30 @@ defmodule InitialD.Relval.Assign do
       end
         
       t = acc
-#      IO.inspect [t222: t]
       deletes = t[:deletes]
+      IO.inspect [t222: deletes]
       if (nil != deletes and !Enum.all?(deletes, fn(rec) ->
 #            IO.inspect [deletes: rec]
-            table = elem(rec.tuple, 0)
-            key = elem(rec.tuple, 1)
-            :ok == :mnesia.delete({table, key})
+#            table = elem(rec.tuple, 0)
+#            key = elem(rec.tuple, 1)
+#            :ok == :mnesia.delete({table, key})
+            :ok == :mnesia.delete(rec)
           end)) do
 #        IO.inspect [NG: t]
         :mnesia.abort(:delete_abort)
       end
       updates = t[:updates]
-#      IO.inspect [updates: updates]
+      IO.inspect [updates: updates]
       if (!Enum.all?(updates, fn(rec) ->
-#            IO.inspect [updates: rec]
-            :ok == :mnesia.write(rec.tuple)
+            IO.inspect [updates: rec]
+            :ok == :mnesia.write(rec)
           end)) do
 #        IO.inspect [NG: t]
         :mnesia.abort(:update_abort)
+#      else
+#        IO.inspect [t: :ok]
       end
+#      IO.inspect [t: t]
       ret =InitialD.Constraint.validate(Enum.to_list(t[:relations]))
 #      IO.inspect [ret: ret, rel: Enum.to_list(t[:relations])]
       if (ret != :ok) do

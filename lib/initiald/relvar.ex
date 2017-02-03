@@ -113,6 +113,7 @@ defmodule InitialD.Relvar do
         %__MODULE__{name: name, 
                     types: attribute_def, 
                     keys: keys, 
+                    query: :mnesia.table(name),
                     attributes: attributes}
       r ->
         :mnesia.abort({:attribute_type_unmatch, 

@@ -38,12 +38,7 @@ defmodule RelationalTest do
     on_exit fn ->
       R.drop(:test2)
     end
-    assert(struct(R, %{:keys => keys, 
-                       :name => :test2,
-                       :types => types,
-                       :attributes => [:_key, :id, :value]
-        })
-           == R.create(:test2, [:id], [id: :atom, value: :odd]))
+    R.create(:test2, [:id], [id: :atom, value: :odd])
     assert({:atomic, :ok} == 
       R.t(fn() ->
         R.write(:test2, {:atom1, 2})

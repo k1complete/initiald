@@ -16,9 +16,11 @@ defmodule InitialD do
       alias InitialD.Constraint
       alias InitialD
       require Relval
+      require Relval.Assign
       require Reltype
       require Relvar
       require InitialD
+      require Qlc
       import InitialD
     end
   end
@@ -385,13 +387,39 @@ defmodule InitialD do
   is equivalent to:
   u = ((s = where(left, wfun)) |> extend_add(sfun_list))
   left = union(minus(left, s), u)
+##      {:atomic, [{:a1, {:a1, :v1}, :a1, :v1}, 
+##                 {:a1, {:a2, :v2}, :a2, :v2}]}
 
+      iex> a = Relvar.create(:a1, [:key], [key: :atom, value: :atom])
+      iex> R.t(fn() -> 
+      ...>   IO.inspect [a: a]
+      ...>   assign [] do
+      ...>     insert: a -> 
+      ...>       Relval.new(%{types: [key: :atom, value: :atom],
+      ...>                    body: [{:a1, :v1}, {:a2, :v2}],
+      ...>                    keys: [:key],
+      ...>                    name: :a1})
+      ...>   end
+      ...>   b = a[{:key, :value}]
+      ...>   Relval.execute(b) |> Enum.sort()
+      ...> end)
+      ...> R.t(fn() ->
+      ...>   assign [] do
+      ...>     update: where(a, (key == :a1)) -> 
+      ...>       [key: :a3, value: old[:value]]
+      ...>   end
+      ...>   b = a[{:key, :value}]
+      ...>   Relval.execute(b) |> Enum.sort()
+      ...> end)
+      {:atomic, 
+        [{:a1, {:a1, :v1}, :a1, :v1}, 
+         {:a1, {:a2, :v2}, :a2, :v2}]}
 
   
   """
   defmacro assign(bind, block) do
-    quote bind_quoted: [bind: bind, block: block] do
-      Relval.assign(bind, block)
+    quote do
+      Relval.assign(unquote(bind), unquote(block))
     end
   end
   def get(t, key, default \\ nil) do

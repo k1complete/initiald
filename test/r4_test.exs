@@ -47,12 +47,7 @@ defmodule Relational_Test4 do
     on_exit fn ->
       R.drop(:test2)
     end
-    assert(struct(R, %{:keys => keys, 
-                       :name => :test2,
-                       :types => types,
-                       :attributes => [:_key, :id, :value, :id2]
-        })
-           == R.create(:test2, [:id, :id2], [id: :atom, value: :odd, id2: :atom]))
+    R.create(:test2, [:id, :id2], [id: :atom, value: :odd, id2: :atom])
     :mnesia.add_table_index(:test2, :value)
     assert({:atomic, :ok} == 
       R.t(fn() ->
@@ -79,21 +74,26 @@ defmodule Relational_Test4 do
   test "assign" do
     create_type()
     relvar = R.to_relvar(:test2)
-    assert {:atomic, _ret} = R.t(fn() ->
-      L.assign [s: s] do
+    assert {:atomic, 
+            [{:test2, {:a3, :a23}, :a3, 12, :a23},
+             {:test2, {:a4, :a24}, :a4, 14, :a24},
+             {:test2, {:atom2, :a2}, :atom2, 4, :a2}]} == 
+      R.t(fn() ->
+        L.assign [s: s] do
 #        update: L.where(relvar, (value == 2)) ->
 #          [id2: old[:id], value: s+1]
         insert: relvar ->
           L.new(%{types: [value: :odd, id: :atom, id2: :atom],
-              body: [{12, :a3, :a23}],
+              body: [{12, :a3, :a23},
+                     {14, :a4, :a24}],
               keys: [:id, :id2],
               name: :test2})
         delete: L.where(relvar, (value == 2)) ->
           old
 #       true
       end
+      relvar |> L.execute() |> Enum.sort()
     end)
-#    IO.inspect [ret: ret]
   end
   test "assign2" do
     create_type()

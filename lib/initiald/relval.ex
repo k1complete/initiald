@@ -73,6 +73,9 @@ defmodule InitialD.Relval do
 #    IO.inspect [execute: e]
     e
   end
+  def execute(%Relvar{} = t) do
+    Qlc.e(t.query)
+  end
   @spec set_operation((query, query, atom -> query), t, t) :: t | {:error, :bad_reltype}
   def set_operation(f, left, right) do
     case left.types == right.types  do

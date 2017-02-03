@@ -45,12 +45,7 @@ defmodule Relational_Test3 do
     on_exit fn ->
       R.drop(:test2)
     end
-    assert(struct(R, %{:keys => keys, 
-                       :name => :test2,
-                       :types => types,
-                       :attributes => [:_key, :id, :value, :id2]
-        })
-           == R.create(:test2, [:id, :id2], [id: :atom, value: :odd, id2: :atom]))
+    R.create(:test2, [:id, :id2], [id: :atom, value: :odd, id2: :atom])
     :mnesia.add_table_index(:test2, :value)
     assert({:atomic, :ok} == 
       R.t(fn() ->
