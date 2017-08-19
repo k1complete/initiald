@@ -9,7 +9,7 @@ defmodule ConstraintTest do
   require Reltype
   require Constraint
   @moduletag :test3
-  @key :_key
+#  @key :_key
 
   setup_all do
     :mnesia.start
@@ -42,10 +42,10 @@ defmodule ConstraintTest do
     :ok
   end
   def create_type do
-    keys = [:id]
-    types = [id: :atom, value: :odd]
+#    keys = [:id]
+#    types = [id: :atom, value: :odd]
     R.create(:test2, [:id], [id: :atom, value: :odd])
-    m = R.create(:test22, [:value], [value: :odd, mark: :atom])
+    R.create(:test22, [:value], [value: :odd, mark: :atom])
   end
   test "create/3" do
     create_type()
@@ -82,8 +82,8 @@ defmodule ConstraintTest do
         Constraint.validate([:test2])
       end))
   end
-  @tag :is_empty
-  test "is_empty" do
+  @tag :empty?
+  test "empty?" do
     create_type()
     on_exit fn ->
       R.drop(:test2)
@@ -92,7 +92,7 @@ defmodule ConstraintTest do
     end
     s = R.t(fn() ->
       Constraint.create("test_2_22_check", [:test2], fn(_x) ->
-        Constraint.is_empty(fn() ->
+        Constraint.empty?(fn() ->
           R.to_relvar(:test2) 
           |> L.where([], (value != 6))
         end)
@@ -122,5 +122,101 @@ defmodule ConstraintTest do
       Constraint.validate([:test2])
     end)
     assert {:aborted, [{false, "test_2_22_check", false}]} == u
+  end
+  @tag :exclude
+  test "generic_exclude?" do
+    create_type()
+    on_exit fn ->
+      R.drop(:test2)
+      R.drop(:test22)
+      R.t(fn() -> Constraint.delete("test_2_exclude_generic") end)
+    end
+    R.t(fn() ->
+      Constraint.create("test_2_exclude_generic", [:test2], fn(_x) ->
+        Constraint.generic_exclude?(:test2, fn(t1, t2) ->
+          IO.inspect [t1: t1.tuple, t2: t2.tuple]
+          t1[:value] != t2[:value]
+          end)
+      end)
+    end)
+    assert {:aborted, 
+       [{false, "test_2_exclude_generic", 
+         {:exclude,
+          %InitialD.Reltuple{},
+          %InitialD.Reltuple{}}}]} = 
+      R.t(fn() ->
+        :mnesia.write({:test2, {:id2, 6}, :id2, 6} )
+        :mnesia.write({:test2, {:id2, 4}, :id2, 4} )
+        :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
+        :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
+        :mnesia.write({:test2, {:id3, 8}, :id3, 8} )
+        IO.inspect [write: :write]
+        Constraint.validate([:test2])
+      end)
+
+  end
+  @tag :exclude_abort
+  test "exclude_abort" do
+    create_type()
+    on_exit fn ->
+      R.drop(:test2)
+      R.drop(:test22)
+      R.t(fn() -> Constraint.delete("test_2_exclude") end)
+    end
+    assert {:aborted, {%InitialD.ConstraintRequiredIndexError{}, st}} = R.t(fn() ->
+      Constraint.create("test_2_exclude", [:test2], 
+                        fn(_x) ->
+                          Constraint.exclude?(:test2, :value, fn(t1, t2) ->
+                            t1 != t2
+                          end)
+                        end, 
+                        fn() ->
+                          Constraint.require_index(:test2, :value)
+                        end)
+    end)
+    {:atomic, :ok} = :mnesia.add_table_index(:test2, :value)
+    assert {:atomic, true}  = R.t(fn() ->
+      Constraint.create("test_2_exclude", [:test2], 
+                        fn(_x) ->
+                          Constraint.exclude?(:test2, :value)
+                        end, 
+                        fn() -> 
+                          Constraint.require_index(:test2, :value) 
+                        end)
+
+    end)
+  end
+  test "exclude?" do
+    create_type()
+    on_exit fn ->
+      R.drop(:test2)
+      R.drop(:test22)
+      R.t(fn() -> Constraint.delete("test_2_exclude") end)
+    end
+    {:atomic, :ok} = :mnesia.add_table_index(:test2, :value)
+    assert {:atomic, true}  = R.t(fn() ->
+      Constraint.create("test_2_exclude", [:test2], 
+                        fn(_x) ->
+                          Constraint.exclude?(:test2, :value)
+                        end, 
+                        fn() -> 
+                          Constraint.require_index(:test2, :value) 
+                        end)
+
+    end)
+    assert {:atomic, :ok} =
+      R.t(fn() ->
+        :mnesia.write({:test2, {:id2, 6}, :id2, 6} )
+        :mnesia.write({:test2, {:id2, 4}, :id2, 4} )
+        :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
+        :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
+        :mnesia.write({:test2, {:id3, 8}, :id3, 8} )
+        IO.inspect [write: :write]
+        Constraint.validate([:test2])
+      end)
+  end
+  @tag :range_exclude
+  test "range_exclude" do
+    
   end
 end

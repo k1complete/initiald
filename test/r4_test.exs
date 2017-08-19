@@ -42,8 +42,8 @@ defmodule Relational_Test4 do
     :ok
   end
   def create_type do
-    keys = [:id, :id2]
-    types = [id: :atom, value: :odd, id2: :atom]
+#    keys = [:id, :id2]
+#    types = [id: :atom, value: :odd, id2: :atom]
     on_exit fn ->
       R.drop(:test2)
     end

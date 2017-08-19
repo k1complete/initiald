@@ -33,12 +33,13 @@ defmodule RelationalTest do
     :ok
   end
   def create_type do
-    keys = [:id]
-    types = [id: :atom, value: :odd]
+#    keys = [:id]
+#    types = [id: :atom, value: :odd]
     on_exit fn ->
       R.drop(:test2)
     end
-    R.create(:test2, [:id], [id: :atom, value: :odd])
+    m = R.create(:test2, [:id], [id: :atom, value: :odd])
+#    IO.inspect m
     assert({:atomic, :ok} == 
       R.t(fn() ->
         R.write(:test2, {:atom1, 2})

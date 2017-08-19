@@ -13,6 +13,7 @@ defmodule InitialD.Reltype do
     :mnesia.create_table(@reltype, 
                          [type: :set,
                           attributes: Keyword.keys(@reltype_fields)])
+    InitialD.Relvar.init()
   end
   @spec create(record(:reltype)) :: :ok | any
   def create(t) when Record.is_record(t, @reltype) do

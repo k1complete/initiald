@@ -35,6 +35,13 @@ defmodule InitialD.Relvar do
   def del_index(%__MODULE__{name: v} = _relvar, att) do
     :mnesia.del_table_index(v, att)
   end
+  @attributes :_attributes
+  @attribute_fields [name: :atom, type: :atom]
+  def init() do
+    :mnesia.create_table(@attributes,
+      [type: :set,
+       attributes: Keyword.keys(@attribute_fields)])
+  end
   defmacro sel!(type, value) do
     quote bind_quoted: [type: type, value: value] do
       [{_, _, v, cast}] = Reltype.read(type)
@@ -79,6 +86,18 @@ defmodule InitialD.Relvar do
   @spec drop(atom | __MODULE__.t) :: :ok | no_return
   def drop(relname) when is_atom(relname) do
 #    Logger.debug(fn() -> inspect(relname) <> " drop" end)
+    true = :mnesia.activity(:transaction,
+      fn() -> 
+        q = Qlc.q("""
+        [ K || {_, {T, K}, _} <- A,
+          T =:= Table ]
+        """, [A: :mnesia.table(@attributes),
+              Table: relname])
+        m = Qlc.e(q)
+        Enum.all?(m, fn(e) ->
+          :ok = :mnesia.delete({@attributes, e})
+        end)
+      end)
     :mnesia.delete_table(relname)
   end
   def drop(relvar = %__MODULE__{}) do
@@ -105,10 +124,16 @@ defmodule InitialD.Relvar do
         attribute_keys = Keyword.keys(attribute_def)
         attributes = [@key|attribute_keys]
         tabledefs = [type: :set,
-                     attributes: attributes,
-                     user_properties: [keynames: keys,
-                                       types: attribute_def]]
+                     attributes: attributes]
+#                     user_properties: [keynames: keys,
+#                                       types: attribute_def]]
 #        IO.inspect [create_var: name, tabledefs: tabledefs]
+      :ok = :mnesia.activity(:transaction, fn() ->
+          Enum.map(attribute_def, fn({n, t}) ->
+            :mnesia.write({@attributes, {name, n}, t})
+          end)
+          :mnesia.write({@attributes, {name, @key}, keys})
+        end)
         {:atomic, :ok} = :mnesia.create_table(name, tabledefs)
         %__MODULE__{name: name, 
                     types: attribute_def, 
@@ -123,9 +148,20 @@ defmodule InitialD.Relvar do
     end
   end
   @spec types(atom) :: [{atom, any}]
-  def types(name) when is_atom(name) do
-    :mnesia.table_info(name, :user_properties) |>
-    Keyword.get(:types)
+  defp types(name) when is_atom(name) do
+    :mnesia.activity(:transaction, fn() ->
+      [@key | attributes] = :mnesia.table_info(name, :attributes)
+      Enum.map(attributes, fn(a) -> 
+        [{_, {_, a}, v}] =  :mnesia.read(@attributes, {name, a})
+        {a, v}
+      end)
+    end)
+  end
+  defp keys(name) when is_atom(name) do
+    :mnesia.activity(:transaction, fn() ->
+      [{_, {_, a}, v}] =  :mnesia.read(@attributes, {name, @key})
+      v
+    end)
   end
   @spec to_relvar(atom) :: %__MODULE__{name: atom, attributes: [atom], }
   def to_relvar(name) when is_atom(name) do
@@ -133,8 +169,8 @@ defmodule InitialD.Relvar do
     u = Keyword.get(s, :user_properties)
     %__MODULE__{name: name, 
                 attributes: Keyword.get(s, :attributes),
-                types: Keyword.get(u, :types),
-                keys: Keyword.get(u, :keynames),
+                types: types(name),
+                keys: keys(name),
                 query: :mnesia.table(name)}
   end
   @doc """
@@ -187,7 +223,7 @@ defmodule InitialD.Relvar do
     end
   end
   def get_key_from_tuple(t, relvar) do
-    [_key|attributes] = relvar.attributes
+    [@key | attributes] = relvar.attributes
     keys = relvar.keys
     i = get_indexies(attributes, keys)
     get_keys(t, i)

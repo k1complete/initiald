@@ -8,6 +8,7 @@ defmodule Relational_Test3 do
   alias Relvar, as: R
   alias Relval, as: L
   require Reltuple
+
   @moduletag :test5
 
   setup_all do
@@ -40,8 +41,8 @@ defmodule Relational_Test3 do
     :ok
   end
   def create_type do
-    keys = [:id, :id2]
-    types = [id: :atom, value: :odd, id2: :atom]
+#    keys = [:id, :id2]
+#    types = [id: :atom, value: :odd, id2: :atom]
     on_exit fn ->
       R.drop(:test2)
     end
@@ -67,9 +68,6 @@ defmodule Relational_Test3 do
       R.t(fn() ->
         R.write(:test2, {:atom3, 31, :a4})
       end))
-  end
-  test "create_type" do
-    create_type()
   end
   @tag :where2
   test "Relational operator where" do

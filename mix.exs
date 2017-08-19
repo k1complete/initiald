@@ -4,7 +4,7 @@ defmodule Initiald.Mixfile do
   def project do
     [app: :initiald,
      version: "0.0.1",
-     elixir: "~> 1.1-dev",
+     elixir: "~> 1.4",
      name: "subset of Tutorial D",
      dialyzer: [plt_add_apps: [:mnesia, :qlc], 
                 flags: ["-Wunmatched_returns", 
@@ -18,7 +18,7 @@ defmodule Initiald.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [applications: [:logger, :mnesia, :qlc, :stdlib]]
+    [applications: [:logger, :mnesia, :qlc, :stdlib, :timex]]
   end
 
   # Dependencies can be Hex packages:
@@ -34,7 +34,9 @@ defmodule Initiald.Mixfile do
     [{:ex_doc, "~> 0.14", only: :dev, git: "https://github.com/elixir-lang/ex_doc.git"},
      {:earmark, "~> 1.0", only: :dev},
      {:qlc, "~> 1.0", github: "k1complete/qlc"},
-     {:dialyxir, "~> 0.3", only: [:dev]}
+     {:dialyxir, "~> 0.3", only: [:dev]},
+     {:timex, "~>3.1"}
+#     {:timex, path: "../timex"}
     ]
   end
 end

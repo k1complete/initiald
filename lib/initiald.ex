@@ -1,7 +1,7 @@
 alias InitialD.Relval
 defmodule InitialD do
   require Relval
-  @behaviour Access
+#  @behaviour Access
   @doc """
   initialize InitialD 
 
@@ -15,6 +15,7 @@ defmodule InitialD do
       alias InitialD.Reltuple
       alias InitialD.Constraint
       alias InitialD
+      alias InitialD.Type
       require Relval
       require Relval.Assign
       require Reltype
@@ -375,12 +376,6 @@ defmodule InitialD do
     Relval.extend(left, f, [{a, t}]) 
   end
 
-  
-  defmacro with2(fun, a) do
-    quote bind_quoted: [fun: fun, a: a] do
-      a = fun.()
-    end
-  end
   @doc """
   relational assingment
 
@@ -392,7 +387,6 @@ defmodule InitialD do
 
       iex> a = Relvar.create(:a1, [:key], [key: :atom, value: :atom])
       iex> R.t(fn() -> 
-      ...>   IO.inspect [a: a]
       ...>   assign [] do
       ...>     insert: a -> 
       ...>       Relval.new(%{types: [key: :atom, value: :atom],
@@ -422,36 +416,4 @@ defmodule InitialD do
       Relval.assign(unquote(bind), unquote(block))
     end
   end
-  def get(t, key, default \\ nil) do
-    case fetch(t, key) do
-      :error -> default
-      {:ok, value} -> value
-    end
-  end
-  def get_and_update(t, key, f) do
-    case f.(get(t, key)) do
-      :pop ->
-        pop(t, key)
-      {old, new} ->
-        {old, new}
-    end
-  end
-  def pop(t, key) when is_tuple(key) do
-    sels = Tuple.to_list(key)
-    atts = Keyword.keys(t.types)
-    sels = atts -- sels
-    case sels do
-      [] -> :error
-      _x -> {:ok, project(t, sels)}
-    end
-  end
-  def fetch(t, key) when is_tuple(key) do
-    sels = Tuple.to_list(key)
-    atts = Keyword.keys(t.types)
-    case sels -- atts do
-      [] -> {:ok, project(t, sels)}
-      _x -> :error
-    end
-  end
-
 end

@@ -533,7 +533,7 @@ defmodule InitialD.Relval do
         end)
       catch
         e,f ->
-          IO.inspect [e: e, f: f, a: a]
+#          IO.inspect [e: e, f: f, a: a]
 #          raise(e, f)
           :mnesia.abort(f)
       end
