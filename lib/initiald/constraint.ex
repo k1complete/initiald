@@ -132,7 +132,7 @@ defmodule InitialD.Constraint do
       true -> 
         true
       false ->
-        {:foreign_key, fkvar.name, pkvar.name, s}
+        {:foreign_key, fkvar.name, pkvar.name}
     end
   end
   @doc """
@@ -144,6 +144,24 @@ defmodule InitialD.Constraint do
       false ->
         false
     end
+  end
+  @doc """
+  指定した属性について、関係変数中でユニークであること
+  """
+  def unique?(r, attributes, condition \\ fn(_x) -> true end) do
+    relvar = R.to_relvar(r)
+    IO.inspect [attributes: attributes, r: relvar.types]
+    right = L.project(relvar, attributes)
+    c = L.summarize(relvar, right, add: {fn(x) -> {L.count(x)} end, [c: :int]})
+    c = L.execute(c)
+    IO.inspect [summarize: c]
+    true
+#    c = L.do_project(relvar, attributes) |> L.count()
+#    if (c == L.count(relvar)) do
+#      true
+#    else
+#      {:unique?, relvar.name, attributes, c}
+#    end
   end
   defp loop_b(table, types, a, at, b, f) do
     case b do
