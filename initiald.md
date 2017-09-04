@@ -25,3 +25,61 @@ n次元空間の名称が関係名で、単にn項関係とも言います。
 関係代数は関係に成立する演算を定義したもので、全体の体系としては一階述
 語論理のサブセットと等価です。そして一階述語論理は完全かつ健全であるこ
 とが証明されています。
+
+where relname, fn(t) ->
+      t[:s] == 1
+end
+
+このマクロを
+
+  attindex = get_index(relname.attributes, :s)
+  Bs = erl_eval:add_binding(:R, relname.query, erl_eval:new_bindings());
+  q = :qlc.string_to_handle('[X || X <- R, element(#{attindex}, X) == 1].', Bs)
+  %{rename | :query => q}
+
+的に展開してほしい。やる事は、
+
+  fn の引数 {{:., [Access, get]}を見付けて、その第一引数が fnの引数と同じ
+  なら、
+  quote bindings: [s: :s, relname: relname] do
+   'element(#{Relval.ai(relname, s)}, X)'
+  と出来る。
+  あとは、Macro.to_string(M, &fmt/2)を使ってフォーマットする。
+  という処理をMacro.prewalkerに仕込む
+
+  するとASTが文字列になる。
+  そして、これらを「実行時」に行うために、whereマクロではさらにescape する。
+
+  defmacro where(left, binding \\ [], exp) do
+    m = Macro.escape(exp)
+    quote bind_quoted: [left: left, exp: exp, binding: binding] do
+      %__MODULE__{left | query: do_while(left, binding, exp)}
+    end
+  end
+  def do_while(left, binding, exp) do
+    {:fn, _, 
+      [{:->, _, [[{x, _, _}]], body]}]} = exp
+    bs = [{x, left}|binding] 
+    Macro.prewalk(body,
+      fn({{:., [], [Access, :get]}, [], [arg1, arg2]}) ->
+        case arg1 do        
+          {^x, _, atom} when is_atom(a) and is_atom(atom) -> 
+            quote do: element(Relval.ai(unquote(left), arg2), unquote(left))
+          arg1 ->
+            arg1
+        end 
+       (x) -> x
+     end)
+     
+    {:fn, _, 
+     [{:->, [],
+       [[{x, [], Elixir}], ## ここまで固定で仮引数xを捕捉するし、
+                           ## bindingリストにいれておく
+        {:==, [], 
+          [{{:., [], [Access, :get]}, [], [{:t, [], Elixir}, :s]}, 1]}]}]}
+     :->/2の第２引数からprewalkする
+    [x: left | binding]
+    Access.get({:x, [], Elixir}, Y)なら element(Relval.ai(x, Y), x)
+    
+  end
+    

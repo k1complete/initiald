@@ -30,7 +30,10 @@ defmodule ConstraintTest do
     )
     assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
     m = Reltype.reltype(typename: :odd, 
-                        definition: fn(x) -> rem(x, 2) == 0 end)
+      definition: fn(x) -> 
+        IO.inspect [odd: x]
+        rem(x, 2) == 0 
+      end)
     assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
     on_exit fn ->
 #      IO.puts "destroy"
@@ -226,19 +229,23 @@ defmodule ConstraintTest do
     assert {:atomic, true} = R.t(fn() ->
       Constraint.create("test_2_unique", [:test2],
         fn(_t) ->
-          Constraint.unique?(:test2, [:value])
+          Constraint.unique?(:test2, [:value], fn(x) -> 
+            L.where(x, (value < 6))
+          end)
         end)
     end)
-    assert {:atomic, :ok} =
-      R.t(fn() ->
-        :mnesia.write({:test2, {:id2, 6}, :id2, 6} )
-        :mnesia.write({:test2, {:id2, 4}, :id2, 4} )
-        :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
-        :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
-        :mnesia.write({:test2, {:id3, 8}, :id3, 8} )
-        IO.inspect [write: :write]
-        Constraint.validate([:test2])
-      end)
+    assert {:aborted,
+            [{false, "test_2_unique",
+              {:unique?, [{:test2, 2, 2, 2}], [value: :odd, c: :int]}}]}
+    = R.t(fn() ->
+      :mnesia.write({:test2, {:id2, 6}, :id2, 6} )
+      :mnesia.write({:test2, {:id2, 4}, :id2, 4} )
+      :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
+      :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
+      :mnesia.write({:test2, {:id3, 2}, :id3, 2} )
+      IO.inspect [write: :write]
+      Constraint.validate([:test2])
+    end)
   end
   
   @tag :range_exclude

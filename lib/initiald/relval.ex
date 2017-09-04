@@ -63,6 +63,13 @@ defmodule InitialD.Relval do
   def table(t) do
     t.query
   end
+  def aindexes(relval) do
+    m = Keyword.keys(relval.types) 
+    |> Enum.with_index(3)
+  end
+  def ai(relval, a) do
+    Keyword.get(aindexes(relval), a)
+  end
   @spec execute(t) :: list()
   def execute(%__MODULE__{} = relval) do
 #    IO.inspect [execute: relval]
@@ -347,6 +354,15 @@ defmodule InitialD.Relval do
 #    IO.puts Macro.to_string(q)
     q
   end
+  def where2(left, condition) do
+    q = Qlc.q("[X || X <- L, F(X) =:= true]",
+      [L: left.query,
+       F: fn(x) -> 
+         condition.(Reltuple.raw_new(x, left.types)) 
+       end])
+    %InitialD.Relval{name: left.name, keys: left.keys,
+                     types: left.types, query: q}
+  end
   def extend(left, f, [{a, t}]) do
     q = Qlc.q("[erlang:append_element(R, F(R)) || R <- Left]",
       [F: 
@@ -389,7 +405,32 @@ defmodule InitialD.Relval do
           end
       end, nil, left.query)
   end
-  def summarize(left, right, add: {summary_fun, summary_types}) do
+  
+  def summarize(left, right, summarize_list) do
+    q = Qlc.q("[list_to_tuple(tuple_to_list(R)++F(R)) || R <- Right]",
+              [F: 
+               fn(x) -> 
+#                 _keys = Keyword.keys(right.types)
+#                 IO.inspect [XXX: x, name: elem(x, 0), key: keys,
+#                             types: right.types]
+                 Enum.map(summarize_list, 
+                   fn({_name, {summary_fun, _summary_type}}) ->
+                     summary_fun.(Relval.matching(
+                           left, 
+                           Relval.raw_new(%{body: [x],
+                                            types: right.types,
+                                            name: elem(x, 0),
+                                            keys: Keyword.keys(right.types)})))
+                   end)
+               end,
+               Right: right.query])
+#    IO.inspect [summarize_debug: Relval.execute(q)]
+    summary_types = Enum.map(summarize_list, fn({name, {_summary_fun, summary_type}}) -> {name, summary_type} end)
+    %__MODULE__{types: right.types ++ summary_types, 
+            query: q, 
+            name: right.name, keys: right.keys}
+  end
+  def summarize2(left, right, add: {summary_fun, summary_types}) do
     q = Qlc.q("[list_to_tuple(tuple_to_list(R)++tuple_to_list(F(R))) || R <- Right]",
               [F: 
                fn(x) -> 
@@ -481,6 +522,7 @@ defmodule InitialD.Relval do
       s
     end
   end
+  
   defmacro update(bind, do: x) do
 #    IO.inspect [update: Macro.expand(x, __ENV__) ]
     ret = Enum.reduce(x, [], fn({:->, w, [[relval], exp]}, a) -> 

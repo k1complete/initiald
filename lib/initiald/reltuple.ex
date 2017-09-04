@@ -27,6 +27,7 @@ defmodule InitialD.Reltuple do
     {:ok, elem(t, i[key])}
   end
   def get(%__MODULE__{tuple_index: i, tuple: t}, key, default) do
+    IO.inspect([get: i, tuple: t, key: key])
     case i[key] do
       nil -> default
       r -> elem(t, r)

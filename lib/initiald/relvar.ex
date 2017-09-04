@@ -159,14 +159,13 @@ defmodule InitialD.Relvar do
   end
   defp keys(name) when is_atom(name) do
     :mnesia.activity(:transaction, fn() ->
-      [{_, {_, a}, v}] =  :mnesia.read(@attributes, {name, @key})
+      [{_, {^name, @key}, v}] =  :mnesia.read(@attributes, {name, @key})
       v
     end)
   end
   @spec to_relvar(atom) :: %__MODULE__{name: atom, attributes: [atom], }
   def to_relvar(name) when is_atom(name) do
     s = :mnesia.table_info(name, :all)
-    u = Keyword.get(s, :user_properties)
     %__MODULE__{name: name, 
                 attributes: Keyword.get(s, :attributes),
                 types: types(name),
@@ -247,6 +246,7 @@ defmodule InitialD.Relvar do
       [] ->
         Tuple.insert_at(t, 0, keyitem)
         |> Tuple.insert_at(0, name)
+        |> Constraint.verify()
         |> :mnesia.write()
         Constraint.validate([relvar.name])
       ret ->

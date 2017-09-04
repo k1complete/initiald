@@ -82,6 +82,35 @@ defmodule InitialD.Constraint do
     :mnesia.delete(@constraint, constraint, :write)
   end
   @doc """
+  verify record for write operation
+  """
+  def verify(r) do
+    t = elem(r, 0)
+    q = Qlc.q("""
+      [ R || (R = {_, _, _, D}) <- Constraint, erlang:fun_info(D, arity) =:= {arity, 2} ]
+      """, [ Constraint: R.table(@constraint) ])
+    qc = Qlc.q("""
+      [ {false, RC, Ret} || {_, C, C, D} <- Constraint,
+                {_, {RV, RC}, RV, RC} <- RelvarConstraint,
+                RC =:= C,
+                RN =:= RV,
+                (Ret = D(RN, Rec)) =/= true
+                ]
+    """, [Constraint: q,
+          RelvarConstraint: R.table(@relvar_constraint),
+          RN: t,
+          Rec: r])
+    case Qlc.e(qc) do
+      [] ->
+#        IO.puts :qlc.info(qc)
+#        IO.inspect [C: qc]
+        r
+      x ->
+        :mnesia.abort(x)
+    end
+  end
+  
+  @doc """
   validate fro relname list.
 
   find related constraint from tables, and
@@ -132,7 +161,7 @@ defmodule InitialD.Constraint do
       true -> 
         true
       false ->
-        {:foreign_key, fkvar.name, pkvar.name}
+        {:foreign_key, fkvar.name, pkvar.name, L.execute(s)}
     end
   end
   @doc """
@@ -148,20 +177,22 @@ defmodule InitialD.Constraint do
   @doc """
   指定した属性について、関係変数中でユニークであること
   """
-  def unique?(r, attributes, condition \\ fn(_x) -> true end) do
+  def unique?(r, attributes, condition \\ fn(x) -> IO.inspect(x); true end) do
     relvar = R.to_relvar(r)
     IO.inspect [attributes: attributes, r: relvar.types]
-    right = L.project(relvar, attributes)
-    c = L.summarize(relvar, right, add: {fn(x) -> {L.count(x)} end, [c: :int]})
-    c = L.execute(c)
-    IO.inspect [summarize: c]
-    true
-#    c = L.do_project(relvar, attributes) |> L.count()
-#    if (c == L.count(relvar)) do
-#      true
-#    else
-#      {:unique?, relvar.name, attributes, c}
-#    end
+    right = condition.(relvar) |> 
+            L.project(attributes)
+    c = L.summarize(relvar, right, [c: {&L.count/1, :int}])
+    c2 = Qlc.q("[X || X <- L, element(Y, X) =/= 1]",
+      [L: c.query, 
+       Y: length(c.types) + 2])
+    IO.inspect [c: c]
+    IO.puts :qlc.info(c2)
+    case Qlc.e(c2) do
+      [] -> true
+      c3 ->
+        {:unique?, c3, c.types}
+    end
   end
   defp loop_b(table, types, a, at, b, f) do
     case b do
@@ -217,10 +248,10 @@ defmodule InitialD.Constraint do
     types = relvar.types
     loop_a(table, types, :mnesia.first(table), f)
   end
-  defp exloop_b(index_table, index, aterm, :"$end_of_table", op) do
+  defp exloop_b(_index_table, _index, _aterm, :"$end_of_table", _op) do
     true
   end
-  defp exloop_b(itable, index, {av, ak}, b = {bv, bk}, op) do
+  defp exloop_b(itable, index, {av, ak}, b = {bv, _bk}, op) do
     case op.(av, bv) do
       true ->
         exloop_b(itable, index, {av, ak}, :ets.next(itable, b), op)
@@ -228,7 +259,7 @@ defmodule InitialD.Constraint do
         ret
     end
   end
-  defp exloop(itable, index, :"$end_of_table", op) do
+  defp exloop(_itable, _index, :"$end_of_table", _op) do
     true
   end
   defp exloop(itable, index, a, op ) do
@@ -239,11 +270,11 @@ defmodule InitialD.Constraint do
         ret
     end
   end
-  def exclude?(table, elem_name, op \\ fn(x, y) -> x != y end) do
+  def exclude?(table, _elem_name, op \\ fn(x, y) -> x != y end) do
     m = :mnesia.table_info(table, :index_info)
     IO.inspect [m: m]
     {:index, :set, [{{i, :ordered}, 
-                    {storage, index_table}}]} = :mnesia.table_info(table, :index_info)
+                    {_storage, index_table}}]} = :mnesia.table_info(table, :index_info)
     exloop(table, i, :ets.first(index_table), op)
   end
   @moduledoc """

@@ -123,17 +123,8 @@ defmodule TeddTest do
                   L.where(L.project(s, [:sno]), 
                   (sno == "s1" or sno == "s2" or sno == "s3" or sno == "s5" )
                   ),
-                  add: {fn(t) ->
-#                         IO.puts 'QLC: ' ++  :qlc.info(t.query)
-#                         IO.inspect [Tuple: t, 
-#                                     List: L.execute(t),
-#                                     QLC: ""]
-                         {L.count(t),
-                          L.max(t, :qty)}
-                       end, 
-                        [pccount: :int, 
-                         qmax: :int]
-                       }
+        [pccount: {&L.count/1, :int},
+         qmax: {fn(t) -> L.max(t, :qty) end, :qty}]
       ) |> L.execute() |> Enum.sort()
     end)
     assert r == {:atomic, L.raw_new(%{types: 
@@ -174,7 +165,7 @@ defmodule TeddTest do
     end)
     assert {:aborted, [{false, "p_sp_fk",
                         {:foreign_key, :sp, :p, _}}]} = r
-#    IO.inspect [s1: r]
+    IO.inspect [s1: r]
     r = R.t(fn() ->
       Enum.into([{"s1",  "p6",  1}], 
                 R.to_relvar(:sp))
