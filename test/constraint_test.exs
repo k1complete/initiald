@@ -247,6 +247,35 @@ defmodule ConstraintTest do
       Constraint.validate([:test2])
     end)
   end
+  @tag :unique2
+  test "unique" do
+    create_type()
+    on_exit fn ->
+      R.drop(:test2)
+      R.drop(:test22)
+      R.t(fn() -> Constraint.delete("test_2_unique2") end)
+    end
+    assert {:atomic, true} == R.t(fn() ->
+      Constraint.create("test_2_unique2", [:test2],
+        fn(m, t) ->
+          Constraint.unique(m, [:value], t, fn(x) -> 
+            L.where(x, (value < 6))
+          end)
+        end)
+    end)
+    assert {:aborted, [{false, "test_2_unique2", 
+                        {:unique, :test2, [{:test2, {:id2, 2}, :id2, 2}], 
+                         {:test2, :id3, :id3, 2}, [:value]}}]}
+    == R.t(fn() ->
+      :mnesia.write({:test2, {:id2, 6}, :id2, 6} )
+      :mnesia.write({:test2, {:id2, 4}, :id2, 4} )
+      :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
+      :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
+      R.write(:test2, {:id3, 2})
+      IO.inspect [write: :write]
+      Constraint.validate([:test2])
+    end)
+  end
   
   @tag :range_exclude
   test "range_exclude" do

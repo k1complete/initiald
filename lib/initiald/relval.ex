@@ -288,7 +288,7 @@ defmodule InitialD.Relval do
 #    IO.puts Macro.to_string(exp2)
     r = Macro.prewalk(exp2, fn(x) ->
       s = case x do
-            {v, m, nil} when is_atom(v) -> 
+            {v, m, a} when is_atom(v) and is_atom(a) -> 
               if ([v] == ckey or v == @key) do
                 {:element, m, [2, {:X, m, nil}]}
               else
@@ -363,6 +363,9 @@ defmodule InitialD.Relval do
     %InitialD.Relval{name: left.name, keys: left.keys,
                      types: left.types, query: q}
   end
+  @doc """
+  where(left, fn(x) -> x[k] == 1 end)
+  """
   def extend(left, f, [{a, t}]) do
     q = Qlc.q("[erlang:append_element(R, F(R)) || R <- Left]",
       [F: 

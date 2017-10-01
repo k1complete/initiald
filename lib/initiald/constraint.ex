@@ -85,6 +85,7 @@ defmodule InitialD.Constraint do
   verify record for write operation
   """
   def verify(r) do
+#    IO.inspect [verify: r]
     t = elem(r, 0)
     q = Qlc.q("""
       [ R || (R = {_, _, _, D}) <- Constraint, erlang:fun_info(D, arity) =:= {arity, 2} ]
@@ -94,7 +95,7 @@ defmodule InitialD.Constraint do
                 {_, {RV, RC}, RV, RC} <- RelvarConstraint,
                 RC =:= C,
                 RN =:= RV,
-                (Ret = D(RN, Rec)) =/= true
+                (Ret = D({C,RN}, Rec)) =/= true
                 ]
     """, [Constraint: q,
           RelvarConstraint: R.table(@relvar_constraint),
@@ -102,14 +103,40 @@ defmodule InitialD.Constraint do
           Rec: r])
     case Qlc.e(qc) do
       [] ->
-#        IO.puts :qlc.info(qc)
-#        IO.inspect [C: qc]
+ #       IO.puts :qlc.info(qc)
+#        IO.inspect [C: qc, r: r]
         r
       x ->
         :mnesia.abort(x)
     end
   end
+  @doc """
   
+  """
+  def unique({cn, r}, attributes, tuple, condition \\ fn(x) -> true end) do
+    IO.inspect [unique: r, attributes: attributes]
+    relvar = R.to_relvar(r)
+    IO.inspect [unique: r, relvar: relvar, tuple: tuple]
+    t = Reltuple.raw_new(tuple, relvar.types)
+    key = elem(tuple, 1)
+    IO.inspect [:attributes, attributes, t: t]
+    kv0 = :erl_eval.add_binding(:T, relvar.query, :erl_eval.new_bindings())
+    {eq, kv} = Enum.map_reduce(attributes, kv0, fn(k, a) ->
+      IO.puts "attributes #{k}\n"
+      i = t.tuple_index[k] + 1
+      {' element(#{i}, X) =:= T#{i}',  :erl_eval.add_binding(:"T#{i}", t[k], a)}
+    end)
+    qs = :lists.flatten(:lists.join(',', ['[X || X <- T' | eq])) ++ '].'
+    q = :qlc.string_to_handle(qs, [], kv)
+#    IO.inspect [q: q, qs: qs, kv: kv]
+#    IO.puts :qlc.info(q)
+    case :qlc.e(q) do
+      [] -> 
+        tuple
+      x ->
+        :mnesia.abort([{false, cn, {:unique, r, x, tuple, attributes}}])
+    end
+  end
   @doc """
   validate fro relname list.
 
@@ -129,6 +156,7 @@ defmodule InitialD.Constraint do
                 RN <- Relnames,
                 RC =:= C,
                 RN =:= RV,
+                erlang:fun_info(D, arity) =:= {arity, 1},
                 (Ret = D(RN)) =/= true
                 ]
     """, [Constraint: R.table(@constraint),

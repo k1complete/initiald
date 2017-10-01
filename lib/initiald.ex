@@ -13,6 +13,7 @@ defmodule InitialD do
       alias InitialD.Reltype
       alias InitialD.Relvar
       alias InitialD.Reltuple
+      alias InitialD.View
       alias InitialD.Constraint
       alias InitialD
       alias InitialD.Type
