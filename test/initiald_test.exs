@@ -53,8 +53,9 @@ defmodule TutorialDTest do
                        :attributes => [@key, :value, :mark]})
            == m)
   end
-
+  @tag :doctest
   doctest InitialD
+
   test "where" do
     assert R.t(fn() ->
       where(Relval.new(%{types: [value: :odd, id: :atom, id2: :atom],

@@ -32,7 +32,6 @@ defmodule ViewTest do
     assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
     m = Reltype.reltype(typename: :odd, 
       definition: fn(x) -> 
-        IO.inspect [odd: x]
         rem(x, 2) == 0 
       end)
     assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
@@ -89,7 +88,7 @@ defmodule ViewTest do
       m
     end)
     {:atomic, m2}  = R.t(fn() -> View.to_relvar(:vtest2) end)
-    IO.inspect [m2: m2, m: m, a: a, b: b]
+#    IO.inspect [m2: m2, m: m, a: a, b: b]
     assert {:atomic, 
             [ {:test2_test22, :id4, :id4, 4, :four},
               {:test2_test22, :id8, :id8, 4, :four} ]} == R.t(fn() ->

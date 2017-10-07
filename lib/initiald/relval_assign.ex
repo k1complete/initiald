@@ -5,6 +5,10 @@ defmodule InitialD.Relval.Assign.Util do
   support for assign expression using reltuple.
   """
   def old_and_new_tuples(rel, exp, bind, result) do
+#    IO.inspect [exp: exp, rel: rel, bind: bind]
+#    IO.inspect [query: Qlc.e(rel.query)]
+#    IO.inspect [query: :mnesia.all_keys(rel.name)]
+#    IO.puts :qlc.info(rel.query)
     :qlc.fold(fn(t, acc) ->
 #      IO.inspect [fold: t, exp: exp, rel: rel, type: rel.types]
       old = Reltuple.raw_new(t, rel.types)
@@ -26,10 +30,8 @@ defmodule InitialD.Relval.Assign.Util do
         end)
         new_val
       end)
-      key = Enum.reduce(rel.keys, {}, 
-                      fn(x, a) -> 
-                        Tuple.append(a, new_candidate[x]) 
-                      end)
+#      IO.inspect [new_candidate: new_candidate]
+      key = Reltuple.get_primary_key(new_candidate, rel.keys)
       new_tuple = :erlang.setelement(2, new_candidate.tuple, key)
       new = Reltuple.raw_new(new_tuple, rel.types)
 #      IO.inspect [new: new]
@@ -75,9 +77,11 @@ defmodule InitialD.Relval.Assign do
               nr = Qlc.q("""
               [X || X <- Q]
               """, [Q: rel])
-#              IO.inspect [keyword2: Macro.escape(keyword), rel: rel]
+#              IO.inspect [keyword2: Macro.escape(keyword), rel: rel, bind: bind]
               acc = InitialD.Relval.Assign.Util.old_and_new_tuples(rel, keyword, 
                                                           bind, acc)
+#              IO.inspect [acc: acc]
+              acc
             end
           {:"->", _, [[[delete: rel]], _keyword]} ->
             quote bind_quoted: [rel: rel] do
@@ -101,13 +105,8 @@ defmodule InitialD.Relval.Assign do
               """, [Q: newrel.query, 
                     F: fn(x) -> 
                       t = InitialD.Reltuple.raw_new(x, newrel.types)
-                      k = Enum.reduce(keys, [], 
-                                      fn(e, a) -> 
-#                                        IO.inspect [a: t[e], e: e, types: newrel.types]
-                                        [t[e] | a]
-                                      end) |> Enum.reverse()
-#                      IO.inspect [k: k, keys: keys]
-                      x = [table, List.to_tuple(k) | Enum.map(Keyword.keys(rel.types), &(t[&1]))]
+                      key = Reltuple.get_primary_key(t, keys)
+                      x = [table, key | Enum.map(Keyword.keys(rel.types), &(t[&1]))]
                       List.to_tuple(x)
                     end])
               e = Qlc.e(nr)
@@ -131,10 +130,10 @@ defmodule InitialD.Relval.Assign do
         
       t = acc
       deletes = t[:deletes]
-      if (nil != deletes and !Enum.all?(deletes, fn(rec) ->
+      if (nil != deletes and 
+        !Enum.all?(deletes, 
+          fn(rec) ->
 #            IO.inspect [deletes: rec]
-#            table = elem(rec.tuple, 0)
-#            key = elem(rec.tuple, 1)
 #            :ok == :mnesia.delete({table, key})
             :ok == :mnesia.delete(rec)
           end)) do
@@ -142,7 +141,7 @@ defmodule InitialD.Relval.Assign do
         :mnesia.abort(:delete_abort)
       end
       updates = t[:updates]
-#      IO.inspect [updates: updates]
+#      IO.inspect [updates: updates, t: t]
       if (!Enum.all?(updates, fn(rec) ->
 #            IO.inspect [updates: rec]
             :ok == :mnesia.write(rec)

@@ -383,11 +383,12 @@ defmodule InitialD do
   is equivalent to:
   u = ((s = where(left, wfun)) |> extend_add(sfun_list))
   left = union(minus(left, s), u)
-##      {:atomic, [{:a1, {:a1, :v1}, :a1, :v1}, 
-##                 {:a1, {:a2, :v2}, :a2, :v2}]}
+  ##      {:atomic, [{:a1, {:a1, :v1}, :a1, :v1}, 
+  ##                 {:a1, {:a2, :v2}, :a2, :v2}]}
 
-      iex> a = Relvar.create(:a1, [:key], [key: :atom, value: :atom])
-      iex> R.t(fn() -> 
+      iex> Relvar.create(:a1, [:key], [key: :atom, value: :atom])
+      ...> R.t(fn() -> 
+      ...>   a = Relvar.to_relvar(:a1)
       ...>   assign [] do
       ...>     insert: a -> 
       ...>       Relval.new(%{types: [key: :atom, value: :atom],
@@ -399,17 +400,16 @@ defmodule InitialD do
       ...>   Relval.execute(b) |> Enum.sort()
       ...> end)
       ...> R.t(fn() ->
+      ...>   a = Relvar.to_relvar(:a1)
       ...>   assign [] do
       ...>     update: where(a, (key == :a1)) -> 
+      ...>       IO.inspect [old: old]
       ...>       [key: :a3, value: old[:value]]
       ...>   end
-      ...>   b = a[{:key, :value}]
-      ...>   Relval.execute(b) |> Enum.sort()
       ...> end)
-      {:atomic, 
-        [{:a1, {:a1, :v1}, :a1, :v1}, 
-         {:a1, {:a2, :v2}, :a2, :v2}]}
-
+      {:atomic,
+        %{deletes: [a1: :a1], relations: MapSet.new([:a1]),
+        updates: [{:a1, :a3, :a3, :v1}]}}
   
   """
   defmacro assign(bind, block) do

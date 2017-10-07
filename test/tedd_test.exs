@@ -165,7 +165,7 @@ defmodule TeddTest do
     end)
     assert {:aborted, [{false, "p_sp_fk",
                         {:foreign_key, :sp, :p, _}}]} = r
-    IO.inspect [s1: r]
+#    IO.inspect [s1: r]
     r = R.t(fn() ->
       Enum.into([{"s1",  "p6",  1}], 
                 R.to_relvar(:sp))

@@ -216,10 +216,8 @@ defmodule InitialD.Relvar do
 #    IO.inspect([t: t, index_list: index_list])
     r = Enum.map(index_list, &(elem(t, &1))) 
         |> List.to_tuple()
-    case r do
-      {i} -> i
-      _ -> r
-    end
+        |> Relutil.to_primary_key()
+    r
   end
   def get_key_from_tuple(t, relvar) do
     [@key | attributes] = relvar.attributes

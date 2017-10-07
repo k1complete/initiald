@@ -1,4 +1,5 @@
 alias InitialD.Reltype
+alias InitialD.Relutil
 defmodule InitialD.Reltuple do
   @behaviour Access
   defstruct tuple_index: %{}, tuple: {}, types: []
@@ -22,12 +23,22 @@ defmodule InitialD.Reltuple do
       tuple: val,
       types: types}
   end    
+  def get_primary_key(tuple, key_attributes) do
+    # IO.inspect [get_primary_key: tuple, key: key_attributes]
+    r = Enum.map(key_attributes, 
+      fn(x) -> 
+        tuple[x] 
+      end) 
+    |> List.to_tuple()
+    |> Relutil.to_primary_key()
+    r
+  end
   def fetch(%__MODULE__{tuple_index: i, tuple: t}, key) do
 #    IO.inspect [i: i, tuple: t, key: key]
     {:ok, elem(t, i[key])}
   end
   def get(%__MODULE__{tuple_index: i, tuple: t}, key, default) do
-    IO.inspect([get: i, tuple: t, key: key])
+#    IO.inspect([get: i, tuple: t, key: key])
     case i[key] do
       nil -> default
       r -> elem(t, r)

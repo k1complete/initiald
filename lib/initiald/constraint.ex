@@ -57,10 +57,10 @@ defmodule InitialD.Constraint do
                         &(att == &1)) + 2
     case :mnesia.table_info(table, :index) do
       [^i] -> 
-        IO.inspect [index: att, i: i]
+#        IO.inspect [index: att, i: i]
         {:ok, i}
-      x ->
-        IO.inspect [index_ng: x, i: i]
+      _x ->
+#        IO.inspect [index_ng: x, i: i]
         raise(InitialD.ConstraintRequiredIndexError, [relname: table, 
                                                       attribute: att])
     end
@@ -113,16 +113,16 @@ defmodule InitialD.Constraint do
   @doc """
   
   """
-  def unique({cn, r}, attributes, tuple, condition \\ fn(x) -> true end) do
-    IO.inspect [unique: r, attributes: attributes]
-    relvar = R.to_relvar(r)
-    IO.inspect [unique: r, relvar: relvar, tuple: tuple]
+  def unique({cn, r}, attributes, tuple, condition \\ fn(x) -> x end) do
+#    IO.inspect [unique: r, attributes: attributes]
+    relvar = condition.(R.to_relvar(r))
+#    IO.inspect [unique: r, relvar: relvar, tuple: tuple]
     t = Reltuple.raw_new(tuple, relvar.types)
-    key = elem(tuple, 1)
-    IO.inspect [:attributes, attributes, t: t]
+#    key = elem(tuple, 1)
+#    IO.inspect [:attributes, attributes, t: t]
     kv0 = :erl_eval.add_binding(:T, relvar.query, :erl_eval.new_bindings())
     {eq, kv} = Enum.map_reduce(attributes, kv0, fn(k, a) ->
-      IO.puts "attributes #{k}\n"
+#      IO.puts "attributes #{k}\n"
       i = t.tuple_index[k] + 1
       {' element(#{i}, X) =:= T#{i}',  :erl_eval.add_binding(:"T#{i}", t[k], a)}
     end)
@@ -205,17 +205,17 @@ defmodule InitialD.Constraint do
   @doc """
   指定した属性について、関係変数中でユニークであること
   """
-  def unique?(r, attributes, condition \\ fn(x) -> IO.inspect(x); true end) do
+  def unique?(r, attributes, condition \\ fn(x) -> IO.inspect(x); x end) do
     relvar = R.to_relvar(r)
-    IO.inspect [attributes: attributes, r: relvar.types]
+#    IO.inspect [attributes: attributes, r: relvar.types]
     right = condition.(relvar) |> 
             L.project(attributes)
     c = L.summarize(relvar, right, [c: {&L.count/1, :int}])
     c2 = Qlc.q("[X || X <- L, element(Y, X) =/= 1]",
       [L: c.query, 
        Y: length(c.types) + 2])
-    IO.inspect [c: c]
-    IO.puts :qlc.info(c2)
+#    IO.inspect [c: c]
+#    IO.puts :qlc.info(c2)
     case Qlc.e(c2) do
       [] -> true
       c3 ->
@@ -271,8 +271,8 @@ defmodule InitialD.Constraint do
   def generic_exclude?(r, f) do
     relvar = R.to_relvar(r)
     table = r
-    IO.inspect [keys: :mnesia.all_keys(table)]
-    IO.inspect [exclude: :exlucede]
+#    IO.inspect [keys: :mnesia.all_keys(table)]
+#    IO.inspect [exclude: :exlucede]
     types = relvar.types
     loop_a(table, types, :mnesia.first(table), f)
   end
@@ -299,8 +299,8 @@ defmodule InitialD.Constraint do
     end
   end
   def exclude?(table, _elem_name, op \\ fn(x, y) -> x != y end) do
-    m = :mnesia.table_info(table, :index_info)
-    IO.inspect [m: m]
+#    m = :mnesia.table_info(table, :index_info)
+#    IO.inspect [m: m]
     {:index, :set, [{{i, :ordered}, 
                     {_storage, index_table}}]} = :mnesia.table_info(table, :index_info)
     exloop(table, i, :ets.first(index_table), op)

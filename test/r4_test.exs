@@ -95,15 +95,18 @@ defmodule Relational_Test4 do
       relvar |> L.execute() |> Enum.sort()
     end)
   end
+  @tag :assign_update
   test "assign2" do
     create_type()
     relvar = R.to_relvar(:test2)
     s = 1
-    assert {:atomic, _ret} = R.t(fn() ->
+    ret = [{:test2, {:atom1, :atom1, 12}, :atom1, :atom1, 12}, 
+           {:test2, {:atom2, :a2, 4}, :atom2, :a2, 4}]
+    assert {:atomic, ret} == R.t(fn() ->
       L.assign [s: s] do
         update: L.where(relvar, (value == 2)) ->
-#          IO.inspect [s: s]
-          [id2: old[:id], value: s+1]
+#          IO.inspect [s: s, old: old]
+          [id2: old[:id], value: s+11]
 #        insert: relvar ->
 #          L.new(%{types: [value: :odd, id: :atom, id2: :atom],
 #              body: [{12, :a4, :a23}],
@@ -113,6 +116,7 @@ defmodule Relational_Test4 do
 #          old
 #       true
       end
+      relvar[{:id, :id2, :value}] |> L.execute() |> Enum.sort()
     end)
 #    IO.inspect [ret: ret]
   end

@@ -66,6 +66,7 @@ defmodule InitialD.Relval do
   def aindexes(relval) do
     m = Keyword.keys(relval.types) 
     |> Enum.with_index(3)
+    m
   end
   def ai(relval, a) do
     Keyword.get(aindexes(relval), a)
@@ -91,7 +92,7 @@ defmodule InitialD.Relval do
  #       IO.puts :qlc.info(q)
         %__MODULE__{name: left.name, types: right.types, query: q, keys: left.keys}
       false ->
-        IO.inspect [left: left.types, right: right.types]
+#        IO.inspect [left: left.types, right: right.types]
         {:error, :bad_reltype}
     end
   end
@@ -326,6 +327,7 @@ defmodule InitialD.Relval do
     case ast do
       {:"==", _m, [a, b]} ->
         r = Macro.to_string(a, &fmt/2) <> " =:= " <> Macro.to_string(b, &fmt/2)
+#        IO.inspect [:"==", "convert", a, b, to: r]
         r
       {:"!=", _m, [a, b]} ->
         r = Macro.to_string(a, &fmt/2) <> " =/= " <> Macro.to_string(b, &fmt/2)

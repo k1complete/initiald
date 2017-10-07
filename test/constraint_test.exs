@@ -31,7 +31,6 @@ defmodule ConstraintTest do
     assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
     m = Reltype.reltype(typename: :odd, 
       definition: fn(x) -> 
-        IO.inspect [odd: x]
         rem(x, 2) == 0 
       end)
     assert({:atomic, :ok} == R.t(fn() -> Reltype.create(m) end))
@@ -119,7 +118,6 @@ defmodule ConstraintTest do
       |> R.write({:id2, 4})
     end)
     assert {:aborted, [{false, "test_2_22_check", false}]} == t
-#    IO.inspect [t: t]
     u = R.t(fn() -> 
       R.write(:test2, {:id3, 4})
       Constraint.validate([:test2])
@@ -137,7 +135,7 @@ defmodule ConstraintTest do
     R.t(fn() ->
       Constraint.create("test_2_exclude_generic", [:test2], fn(_x) ->
         Constraint.generic_exclude?(:test2, fn(t1, t2) ->
-          IO.inspect [t1: t1.tuple, t2: t2.tuple]
+#          IO.inspect [t1: t1.tuple, t2: t2.tuple]
           t1[:value] != t2[:value]
           end)
       end)
@@ -153,7 +151,6 @@ defmodule ConstraintTest do
         :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
         :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
         :mnesia.write({:test2, {:id3, 8}, :id3, 8} )
-        IO.inspect [write: :write]
         Constraint.validate([:test2])
       end)
 
@@ -214,7 +211,6 @@ defmodule ConstraintTest do
         :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
         :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
         :mnesia.write({:test2, {:id3, 8}, :id3, 8} )
-        IO.inspect [write: :write]
         Constraint.validate([:test2])
       end)
   end
@@ -243,7 +239,6 @@ defmodule ConstraintTest do
       :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
       :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
       :mnesia.write({:test2, {:id3, 2}, :id3, 2} )
-      IO.inspect [write: :write]
       Constraint.validate([:test2])
     end)
   end
@@ -272,7 +267,6 @@ defmodule ConstraintTest do
       :mnesia.write({:test2, {:id2, 2}, :id2, 2} )
       :mnesia.write({:test2, {:id2, 8}, :id2, 8} )
       R.write(:test2, {:id3, 2})
-      IO.inspect [write: :write]
       Constraint.validate([:test2])
     end)
   end

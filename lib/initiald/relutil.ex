@@ -9,4 +9,10 @@ defmodule InitialD.Relutil do
     t = Tuple.delete_at(e, 0)
     Tuple.delete_at(t, 0)
   end
+  def to_primary_key(keys) do
+    case keys do
+      {k} -> k
+      _ -> keys
+    end
+  end
 end
